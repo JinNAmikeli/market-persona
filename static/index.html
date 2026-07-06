@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A股市场雷达</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">雪球数据 · 小白看板</p>
+          <h1>A股市场雷达</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="status-pill" id="dataStatus">读取中</span>
+          <button class="icon-button" id="refreshBtn" title="刷新雪球数据" type="button">
+            <span aria-hidden="true">↻</span>
+            <span>刷新</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="market-brief" aria-label="市场概览">
+        <div class="brief-main">
+          <p class="section-label">今日判断</p>
+          <h2 id="marketTone">--</h2>
+          <p id="marketSummary">正在读取雪球雷达数据。</p>
+        </div>
+        <div class="brief-metrics">
+          <div class="metric">
+            <span>情绪分</span>
+            <strong id="sentimentScore">--</strong>
+          </div>
+          <div class="metric">
+            <span>主线数</span>
+            <strong id="themeCount">--</strong>
+          </div>
+          <div class="metric">
+            <span>拥挤度</span>
+            <strong id="crowdingLevel">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-block" aria-labelledby="indicesTitle">
+        <div class="section-head">
+          <div>
+            <p class="section-label">大盘</p>
+            <h2 id="indicesTitle">核心指数</h2>
+          </div>
+          <p class="timestamp" id="generatedAt">--</p>
+        </div>
+        <div class="index-grid" id="indexGrid"></div>
+      </section>
+
+      <section class="dashboard-grid trend-grid">
+        <div class="section-block">
+          <div class="section-head compact">
+            <div>
+              <p class="section-label">历史</p>
+              <h2>指数趋势</h2>
+            </div>
+            <span class="timestamp" id="historyCount">--</span>
+          </div>
+          <div class="trend-list" id="trendList"></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head compact">
+            <div>
+              <p class="section-label">复盘</p>
+              <h2>自动观察稿</h2>
+            </div>
+          </div>
+          <div class="recap-box" id="recapBox">等待数据。</div>
+          <button class="text-button recap-copy" id="copyRecapBtn" type="button">复制复盘</button>
+          <div class="agent-panel">
+            <div class="agent-head">
+              <div>
+                <p class="section-label">Agent</p>
+                <h3>Market Harness 复盘</h3>
+              </div>
+              <button class="icon-button" id="runAgentBtn" type="button" title="生成 Agent 复盘">
+                <span aria-hidden="true">✦</span>
+                <span>生成</span>
+              </button>
+            </div>
+            <div class="agent-output" id="agentOutput">未运行。点击生成会走 Agent Runtime，并记录 trace。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-grid">
+        <div class="section-block">
+          <div class="section-head compact">
+            <div>
+              <p class="section-label">主线</p>
+              <h2>资金与讨论方向</h2>
+            </div>
+          </div>
+          <div class="theme-list" id="themeList"></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head compact">
+            <div>
+              <p class="section-label">解释</p>
+              <h2>小白读盘</h2>
+            </div>
+          </div>
+          <div class="explain-list" id="explainList"></div>
+        </div>
+      </section>
+
+      <section class="section-block" aria-labelledby="hotStocksTitle">
+        <div class="section-head">
+          <div>
+            <p class="section-label">热榜</p>
+            <h2 id="hotStocksTitle">热门股票</h2>
+          </div>
+          <div class="segmented" role="tablist" aria-label="热榜切换">
+            <button class="segment active" data-list="hot_popularity" type="button">人气榜</button>
+            <button class="segment" data-list="hot_watchlist" type="button">关注榜</button>
+          </div>
+        </div>
+        <div class="stock-toolbar">
+          <label class="search-box">
+            <span>⌕</span>
+            <input id="stockSearch" type="search" placeholder="筛选股票、代码或主题" />
+          </label>
+          <button class="text-button" id="copySummaryBtn" type="button">复制摘要</button>
+        </div>
+        <div class="stock-table-wrap">
+          <table class="stock-table">
+            <thead>
+              <tr>
+                <th>排名</th>
+                <th>股票</th>
+                <th>主题</th>
+                <th>现价</th>
+                <th>涨跌幅</th>
+              </tr>
+            </thead>
+            <tbody id="stockTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="dashboard-grid">
+        <div class="section-block">
+          <div class="section-head compact">
+            <div>
+              <p class="section-label">自选</p>
+              <h2>观察台</h2>
+            </div>
+          </div>
+          <form class="watch-form" id="watchForm">
+            <input id="watchInput" type="text" placeholder="输入股票名或代码，逗号分隔" />
+            <button class="icon-button" type="submit" title="更新自选股">
+              <span aria-hidden="true">＋</span>
+              <span>更新</span>
+            </button>
+          </form>
+          <div class="watch-results" id="watchResults"></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head compact">
+            <div>
+              <p class="section-label">社区</p>
+              <h2>热门帖子</h2>
+            </div>
+          </div>
+          <div class="post-list" id="postList"></div>
+        </div>
+      </section>
+
+      <section class="section-block" aria-labelledby="chatTitle">
+        <div class="section-head compact">
+          <div>
+            <p class="section-label">Market Harness Agent</p>
+            <h2 id="chatTitle">Agent 对话</h2>
+          </div>
+          <span class="timestamp" id="agentTrace">等待提问</span>
+        </div>
+        <div class="chat-layout">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-message assistant">
+              <strong>市场观察助手</strong>
+              <p>可以问我今天市场状态、主线为什么热、自选股是否进入热榜，或把“能买吗”转成风险观察框架。</p>
+            </div>
+          </div>
+          <aside class="chat-side">
+            <h3>证据链</h3>
+            <div class="evidence-list" id="agentEvidence">
+              <p>Agent 回复后会显示数据和知识证据。</p>
+            </div>
+            <h3>下一步观察</h3>
+            <div class="next-watch" id="agentNextWatch">
+              <p>等待生成观察清单。</p>
+            </div>
+          </aside>
+        </div>
+        <form class="chat-form" id="agentChatForm">
+          <input id="agentChatInput" type="text" placeholder="例如：今天市场怎么样？AI硬件为什么热？现在能买吗？" />
+          <button class="icon-button" id="agentChatSend" type="submit" title="发送给 Agent">
+            <span aria-hidden="true">↵</span>
+            <span>发送</span>
+          </button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

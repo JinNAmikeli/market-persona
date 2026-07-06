@@ -1,0 +1,18 @@
+{
+  "topic_id": "risk_chasing_hotspots",
+  "title": "追热点风险",
+  "version": "2026-07-06",
+  "status": "draft",
+  "tags": ["追热点", "风险", "情绪", "买卖建议", "观察指标"],
+  "applicable_tasks": ["refusal_or_redirect", "risk_review", "theme_explanation"],
+  "forbidden_use": ["buy_sell_instruction", "target_price"],
+  "sections": [
+    {
+      "section_id": "risk",
+      "title": "为什么不能只看热度",
+      "content": "热度代表关注度和讨论强度，不等于基本面改善，也不等于未来确定收益。越热门的方向，越需要观察扩散、分化和兑现压力。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "追热点风险", "url": null}],
+      "updated_at": "2026-07-06"
+    }
+  ]
+}

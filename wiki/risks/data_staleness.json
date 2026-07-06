@@ -1,0 +1,18 @@
+{
+  "topic_id": "risk_data_staleness",
+  "title": "数据时效风险",
+  "version": "2026-07-06",
+  "status": "draft",
+  "tags": ["数据时效", "刷新", "延迟", "风险"],
+  "applicable_tasks": ["market_overview", "theme_explanation", "briefing_script"],
+  "forbidden_use": ["buy_sell_instruction", "target_price"],
+  "sections": [
+    {
+      "section_id": "definition",
+      "title": "为什么要看数据时间",
+      "content": "市场数据会快速变化。复盘和观察结论必须标注数据生成时间，不能把旧快照当作实时行情。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "数据时效说明", "url": null}],
+      "updated_at": "2026-07-06"
+    }
+  ]
+}

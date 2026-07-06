@@ -1,0 +1,25 @@
+{
+  "topic_id": "risk_crowding",
+  "title": "拥挤度风险",
+  "version": "2026-07-06",
+  "status": "draft",
+  "tags": ["拥挤度", "风险", "分化", "热榜重合", "情绪"],
+  "applicable_tasks": ["risk_review", "theme_explanation", "market_overview", "refusal_or_redirect"],
+  "forbidden_use": ["buy_sell_instruction", "target_price"],
+  "sections": [
+    {
+      "section_id": "definition",
+      "title": "拥挤度是什么意思",
+      "content": "拥挤度可以理解为市场注意力是否集中在同一批热门标的上。人气榜和关注榜重合越多，说明越多资金和讨论集中在相似方向，后续更容易出现分化。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "风险定义", "url": null}],
+      "updated_at": "2026-07-06"
+    },
+    {
+      "section_id": "use_boundary",
+      "title": "使用边界",
+      "content": "拥挤度高不等于马上下跌，拥挤度低也不等于安全。它只能作为风险观察指标，不能单独作为买卖依据。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "边界说明", "url": null}],
+      "updated_at": "2026-07-06"
+    }
+  ]
+}

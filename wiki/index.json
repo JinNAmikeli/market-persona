@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "themes/ai_hardware.json",
+    "themes/semiconductor.json",
+    "themes/lithium_energy.json",
+    "risks/crowding.json",
+    "risks/chasing_hotspots.json",
+    "risks/data_staleness.json"
+  ]
+}

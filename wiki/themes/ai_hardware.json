@@ -1,0 +1,25 @@
+{
+  "topic_id": "theme_ai_hardware",
+  "title": "AI硬件/光通信",
+  "version": "2026-07-06",
+  "status": "draft",
+  "tags": ["AI硬件", "光通信", "光模块", "算力", "CPO", "NPO"],
+  "applicable_tasks": ["theme_explanation", "market_overview", "briefing_script"],
+  "forbidden_use": ["buy_sell_instruction", "target_price"],
+  "sections": [
+    {
+      "section_id": "drivers",
+      "title": "热度驱动因素",
+      "content": "AI硬件和光通信主题的热度通常来自算力基础设施投入、光模块需求预期、海外产业映射、业绩预期变化和热门股票示范效应。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "主题初始说明", "url": null}],
+      "updated_at": "2026-07-06"
+    },
+    {
+      "section_id": "watch_points",
+      "title": "常见观察指标",
+      "content": "观察该主题时，可以看热榜是否从少数核心股扩散到更多标的、相关指数是否配合、热门帖子是否集中在同一逻辑、以及高热股票是否开始分化。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "观察指标", "url": null}],
+      "updated_at": "2026-07-06"
+    }
+  ]
+}

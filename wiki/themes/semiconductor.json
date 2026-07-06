@@ -1,0 +1,25 @@
+{
+  "topic_id": "theme_semiconductor",
+  "title": "半导体/存储",
+  "version": "2026-07-06",
+  "status": "draft",
+  "tags": ["半导体", "存储", "芯片", "硅片", "国产替代"],
+  "applicable_tasks": ["theme_explanation", "market_overview", "briefing_script"],
+  "forbidden_use": ["buy_sell_instruction", "target_price"],
+  "sections": [
+    {
+      "section_id": "drivers",
+      "title": "热度驱动因素",
+      "content": "半导体和存储主题常受周期价格、国产替代、资本开支、库存变化、消费电子需求和政策预期影响。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "主题初始说明", "url": null}],
+      "updated_at": "2026-07-06"
+    },
+    {
+      "section_id": "risks",
+      "title": "常见风险",
+      "content": "该主题容易受到周期波动、估值消化、订单兑现不及预期和短期热度过高的影响，需要区分产业趋势和短期情绪。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "风险说明", "url": null}],
+      "updated_at": "2026-07-06"
+    }
+  ]
+}

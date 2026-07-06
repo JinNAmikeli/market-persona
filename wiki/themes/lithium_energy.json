@@ -1,0 +1,25 @@
+{
+  "topic_id": "theme_lithium_energy",
+  "title": "锂矿/新能源",
+  "version": "2026-07-06",
+  "status": "draft",
+  "tags": ["锂矿", "新能源", "锂电池", "电动车", "储能"],
+  "applicable_tasks": ["theme_explanation", "market_overview", "briefing_script"],
+  "forbidden_use": ["buy_sell_instruction", "target_price"],
+  "sections": [
+    {
+      "section_id": "drivers",
+      "title": "热度驱动因素",
+      "content": "锂矿和新能源主题通常受锂价、终端需求、库存周期、政策预期和龙头公司表现影响。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "主题初始说明", "url": null}],
+      "updated_at": "2026-07-06"
+    },
+    {
+      "section_id": "watch_points",
+      "title": "常见观察指标",
+      "content": "可观察锂价趋势、产业链上下游是否同步、热榜是否只有少数资源股活跃，以及新能源指数是否配合。",
+      "evidence": [{"type": "internal_note", "source": "manual", "title": "观察指标", "url": null}],
+      "updated_at": "2026-07-06"
+    }
+  ]
+}
