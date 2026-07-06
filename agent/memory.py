@@ -47,6 +47,25 @@ def load_memory(user_id: str) -> dict[str, Any]:
     return payload.get(user_id) or default_memory(user_id)
 
 
+def set_memory_fields(user_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    payload = load_all()
+    memory = payload.get(user_id) or default_memory(user_id)
+
+    if "watchlist" in fields:
+        watchlist = fields.get("watchlist") or []
+        memory["watchlist"] = list(dict.fromkeys(item for item in watchlist if item))
+    if "focus_themes" in fields:
+        themes = fields.get("focus_themes") or []
+        memory["focus_themes"] = list(dict.fromkeys(item for item in themes if item))
+    if "knowledge_level" in fields:
+        memory["knowledge_level"] = fields["knowledge_level"]
+
+    memory["updated_at"] = _now()
+    payload[user_id] = memory
+    save_all(payload)
+    return memory
+
+
 def apply_patch(user_id: str, patch: dict[str, Any]) -> dict[str, Any]:
     payload = load_all()
     memory = payload.get(user_id) or default_memory(user_id)

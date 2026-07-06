@@ -29,6 +29,9 @@ class RadarHandler(BaseHTTPRequestHandler):
         if path == "/api/history":
             self._handle_get_history()
             return
+        if path == "/api/signals":
+            self._handle_get_signals()
+            return
         if path == "/api/agent/status":
             self._handle_agent_status()
             return
@@ -57,6 +60,15 @@ class RadarHandler(BaseHTTPRequestHandler):
             else:
                 self._head_response("application/json; charset=utf-8", status=404)
             return
+        if path == "/api/signals":
+            ensure_project_path()
+            from market_radar.market.data_store import latest_path
+
+            if latest_path().exists():
+                self._head_response("application/json; charset=utf-8")
+            else:
+                self._head_response("application/json; charset=utf-8", status=404)
+            return
         self._serve_static(path, head_only=True)
 
     def do_POST(self) -> None:
@@ -72,6 +84,9 @@ class RadarHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/agent/briefing":
             self._handle_agent_briefing()
+            return
+        if path == "/api/agent/memory":
+            self._handle_agent_memory_update()
             return
         self._json_response({"error": "Not found"}, status=404)
 
@@ -98,6 +113,27 @@ class RadarHandler(BaseHTTPRequestHandler):
 
     def _handle_get_history(self) -> None:
         self._json_response(self._read_history())
+
+    def _handle_get_signals(self) -> None:
+        try:
+            ensure_project_path()
+            from market_radar.market.signals import derive_market
+
+            radar = self._read_radar()
+            self._json_response(
+                {
+                    "generated_at": radar.get("generated_at"),
+                    "signals": derive_market(radar),
+                }
+            )
+        except Exception as exc:
+            self._json_response(
+                {
+                    "error": "Signals failed",
+                    "detail": str(exc),
+                },
+                status=500,
+            )
 
     def _read_history(self) -> list[dict]:
         ensure_project_path()
@@ -128,7 +164,7 @@ class RadarHandler(BaseHTTPRequestHandler):
                 "runtime": {
                     "memory": True,
                     "trace": True,
-                    "wiki": False,
+                    "wiki": True,
                     "reflection": True,
                 },
             }
@@ -161,6 +197,30 @@ class RadarHandler(BaseHTTPRequestHandler):
             self._json_response(
                 {
                     "error": "Agent memory failed",
+                    "detail": str(exc),
+                },
+                status=500,
+            )
+
+    def _handle_agent_memory_update(self) -> None:
+        try:
+            payload = self._read_json_body()
+            ensure_project_path()
+            from market_radar.agent.memory import set_memory_fields
+
+            user_id = payload.get("user_id") or "local"
+            fields = {
+                key: payload[key]
+                for key in ("watchlist", "focus_themes", "knowledge_level")
+                if key in payload
+            }
+            self._json_response(set_memory_fields(user_id, fields))
+        except json.JSONDecodeError as exc:
+            self._json_response({"error": f"Invalid JSON: {exc}"}, status=400)
+        except Exception as exc:
+            self._json_response(
+                {
+                    "error": "Agent memory update failed",
                     "detail": str(exc),
                 },
                 status=500,

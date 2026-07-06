@@ -1,6 +1,7 @@
 const state = {
   data: null,
   history: [],
+  signals: null,
   activeList: "hot_popularity",
   search: "",
   watchList: JSON.parse(localStorage.getItem("marketRadar.watchList") || "[]"),
@@ -175,8 +176,28 @@ function deriveMarket(data) {
   return { tone, growthAvg, broadAvg, positiveCount, avgPct, duplicateCount, limitLikeCount, score, crowding, themes };
 }
 
+function normalizeSignals(signals) {
+  if (!signals) return null;
+  return {
+    tone: signals.tone,
+    growthAvg: signals.growth_avg,
+    broadAvg: signals.broad_avg,
+    positiveCount: signals.positive_count,
+    avgPct: signals.avg_pct,
+    duplicateCount: signals.duplicate_count,
+    limitLikeCount: signals.limit_like_count,
+    score: signals.sentiment_score,
+    crowding: signals.crowding,
+    themes: signals.themes || [],
+  };
+}
+
+function currentMarket(data) {
+  return normalizeSignals(state.signals) || deriveMarket(data);
+}
+
 function renderBrief(data) {
-  const m = deriveMarket(data);
+  const m = currentMarket(data);
   const topThemes = m.themes.slice(0, 3).map((item) => item.name).join("、") || "暂无明确主线";
   els.marketTone.textContent = m.tone;
   els.marketSummary.textContent =
@@ -215,7 +236,7 @@ function renderIndices(data) {
 }
 
 function renderThemes(data) {
-  const themes = deriveMarket(data).themes.slice(0, 6);
+  const themes = currentMarket(data).themes.slice(0, 6);
   if (!themes.length) {
     els.themeList.innerHTML = `<div class="theme-row"><p>暂未识别出足够集中的主题。</p></div>`;
     return;
@@ -236,7 +257,7 @@ function renderThemes(data) {
 }
 
 function renderExplain(data) {
-  const m = deriveMarket(data);
+  const m = currentMarket(data);
   const topTheme = m.themes[0]?.name || "暂无明确主线";
   const strongestIndex = [...(data.indices || [])].sort((a, b) => Number(b.percent || 0) - Number(a.percent || 0))[0];
   const weakestIndex = [...(data.indices || [])].sort((a, b) => Number(a.percent || 0) - Number(b.percent || 0))[0];
@@ -315,7 +336,7 @@ function renderTrends(data) {
 }
 
 function buildRecapText(data) {
-  const m = deriveMarket(data);
+  const m = currentMarket(data);
   const sortedIndices = [...(data.indices || [])].sort((a, b) => Number(b.percent || 0) - Number(a.percent || 0));
   const strongest = sortedIndices[0];
   const weakest = sortedIndices[sortedIndices.length - 1];
@@ -413,7 +434,7 @@ function renderWatchList() {
 
 function buildSummaryText() {
   if (!state.data) return "";
-  const m = deriveMarket(state.data);
+  const m = currentMarket(state.data);
   const topThemes = m.themes.slice(0, 4).map((item) => item.name).join("、") || "暂无明确主线";
   const indices = (state.data.indices || [])
     .map((item) => `${item.label}: ${formatNumber(item.current)} (${formatPct(item.percent)})`)
@@ -513,6 +534,38 @@ async function sendAgentChat(message) {
   }
 }
 
+async function loadAgentMemory() {
+  try {
+    const res = await fetch("/api/agent/memory");
+    if (!res.ok) throw new Error(`Memory 读取失败：${res.status}`);
+    const memory = await res.json();
+    if ((memory.watchlist || []).length) {
+      state.watchList = memory.watchlist;
+      localStorage.setItem("marketRadar.watchList", JSON.stringify(state.watchList));
+    } else if (state.watchList.length) {
+      await saveAgentMemory();
+    }
+  } catch {
+    // LocalStorage remains the offline fallback.
+  }
+}
+
+async function saveAgentMemory() {
+  const res = await fetch("/api/agent/memory", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: "local",
+      watchlist: state.watchList,
+    }),
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    throw new Error(payload.detail || payload.error || "Memory 同步失败");
+  }
+  return res.json();
+}
+
 async function loadAgentStatus() {
   try {
     const res = await fetch("/api/agent/status");
@@ -575,6 +628,7 @@ async function loadRadar() {
     if (!res.ok) throw new Error(`读取失败：${res.status}`);
     state.data = await res.json();
     await loadHistory();
+    await loadSignals();
     els.dataStatus.textContent = "已连接";
     els.dataStatus.className = "status-pill ok";
     renderAll(state.data);
@@ -594,6 +648,7 @@ async function refreshRadar() {
     if (!res.ok) throw new Error(payload.detail || payload.error || "刷新失败");
     state.data = payload;
     await loadHistory();
+    await loadSignals();
     els.dataStatus.textContent = "已更新";
     els.dataStatus.className = "status-pill ok";
     renderAll(state.data);
@@ -604,6 +659,17 @@ async function refreshRadar() {
     showToast(error.message);
   } finally {
     els.refreshBtn.disabled = false;
+  }
+}
+
+async function loadSignals() {
+  try {
+    const res = await fetch("/api/signals");
+    if (!res.ok) throw new Error(`信号读取失败：${res.status}`);
+    const payload = await res.json();
+    state.signals = payload.signals || null;
+  } catch {
+    state.signals = null;
   }
 }
 
@@ -644,7 +710,7 @@ els.stockSearch.addEventListener("input", (event) => {
   renderStocks();
 });
 
-els.watchForm.addEventListener("submit", (event) => {
+els.watchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   state.watchList = els.watchInput.value
     .split(/[,，、\s]+/)
@@ -652,6 +718,12 @@ els.watchForm.addEventListener("submit", (event) => {
     .filter(Boolean);
   localStorage.setItem("marketRadar.watchList", JSON.stringify(state.watchList));
   renderWatchList();
+  try {
+    await saveAgentMemory();
+    showToast("自选已同步");
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 
 els.copySummaryBtn.addEventListener("click", async () => {
@@ -684,5 +756,11 @@ els.agentChatForm.addEventListener("submit", (event) => {
 
 els.refreshBtn.addEventListener("click", refreshRadar);
 els.runAgentBtn.addEventListener("click", runAgentRecap);
-loadAgentStatus();
-loadRadar();
+
+async function init() {
+  await loadAgentStatus();
+  await loadAgentMemory();
+  await loadRadar();
+}
+
+init();

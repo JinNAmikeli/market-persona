@@ -6,7 +6,7 @@
 
 ```bash
 conda activate agent-reach
-python market_radar/server.py --host 127.0.0.1 --port 8787
+python server.py --host 127.0.0.1 --port 8787
 ```
 
 打开：
@@ -20,14 +20,14 @@ http://127.0.0.1:8787
 页面右上角的“刷新”会重新请求雪球 API，并更新：
 
 ```text
-market_radar/data/xueqiu_radar_latest.json
-market_radar/data/xueqiu_radar_history.jsonl
+data/xueqiu_radar_latest.json
+data/xueqiu_radar_history.jsonl
 ```
 
 也可以在终端手动刷新：
 
 ```bash
-python tools/xueqiu_radar_collect.py
+python ../tools/xueqiu_radar_collect.py
 ```
 
 ## 注意
@@ -47,7 +47,7 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 
 ## 历史趋势
 
-每次刷新都会向 `market_radar/data/xueqiu_radar_history.jsonl` 追加一条轻量快照。页面会用这些快照展示指数趋势，并生成一段“自动观察稿”。
+每次刷新都会向 `data/xueqiu_radar_history.jsonl` 追加一条轻量快照。页面会用这些快照展示指数趋势，并生成一段“自动观察稿”。
 
 ## Market Harness Agent
 
@@ -56,12 +56,17 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 - 统一读取 `market_radar/data/`，并兼容旧的根目录 `data/`。
 - 后端计算市场主线、情绪分和拥挤度。
 - `/api/agent/chat` 支持本地文字问答。
-- Agent 每轮运行会写入 `market_radar/data/agent_traces.jsonl`。
-- 用户关注点和观察清单会写入 `market_radar/data/user_memory.json`。
+- `/api/agent/briefing` 支持复盘脚本。
+- `/api/signals` 统一前后端市场信号。
+- Agent 每轮运行会写入 `data/agent_traces.jsonl`。
+- 用户关注点和观察清单会写入 `data/user_memory.json`。
 
-相关设计文档：
+## 本地验证
 
-```text
-market_radar/docs/agent_runtime_methodology.md
-market_radar/docs/market_harness_agent_architecture.md
+每次改动 Agent Runtime 后，可以先跑：
+
+```bash
+python scripts/verify_runtime.py
 ```
+
+它会覆盖市场信号、Wiki 检索、普通问答、拒绝荐股、自选股 Memory 和 briefing。
