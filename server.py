@@ -279,7 +279,15 @@ class RadarHandler(BaseHTTPRequestHandler):
             user_id = payload.get("user_id") or "local"
             fields = {
                 key: payload[key]
-                for key in ("watchlist", "focus_themes", "knowledge_level")
+                for key in (
+                    "watchlist",
+                    "focus_themes",
+                    "knowledge_level",
+                    "open_questions",
+                    "blockers",
+                    "next_priority",
+                    "journey_state",
+                )
                 if key in payload
             }
             self._json_response(set_memory_fields(user_id, fields))
@@ -348,6 +356,7 @@ class RadarHandler(BaseHTTPRequestHandler):
                 {
                     "error": "Refresh failed",
                     "detail": str(exc),
+                    "hint": "If you started the server outside the agent-reach env, the app will try 'conda run -n agent-reach' automatically.",
                 },
                 status=500,
             )

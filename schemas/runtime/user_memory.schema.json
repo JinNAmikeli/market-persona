@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime/user_memory.schema.json",
+  "title": "UserMemory",
+  "type": "object",
+  "required": [
+    "user_id",
+    "watchlist",
+    "focus_themes",
+    "knowledge_level",
+    "risk_preferences",
+    "journey_state",
+    "open_questions",
+    "blockers",
+    "next_priority",
+    "last_questions",
+    "last_next_watch",
+    "updated_at"
+  ],
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "watchlist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "focus_themes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "knowledge_level": {
+      "type": "string"
+    },
+    "risk_preferences": {
+      "type": "object",
+      "required": ["needs_stronger_risk_warning"]
+    },
+    "journey_state": {
+      "type": "object",
+      "required": ["stage", "active_task", "updated_from_task"]
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_priority": {
+      "type": "string"
+    },
+    "last_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "last_next_watch": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

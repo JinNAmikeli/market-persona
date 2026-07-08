@@ -1,28 +1,50 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "api/agent_chat_response.schema.json",
-  "title": "AgentChatResponse",
+  "$id": "api/agent_briefing_response.schema.json",
+  "title": "AgentBriefingResponse",
   "type": "object",
   "required": [
     "trace_id",
-    "task_type",
-    "content",
+    "title",
+    "briefing_type",
+    "style",
+    "script",
+    "sections",
     "evidence",
     "risk_flags",
     "next_watch",
-    "review",
-    "execution",
-    "repair"
+    "review"
   ],
   "properties": {
     "trace_id": {
       "type": "string"
     },
-    "task_type": {
+    "title": {
       "type": "string"
     },
-    "content": {
+    "briefing_type": {
       "type": "string"
+    },
+    "style": {
+      "type": "string"
+    },
+    "script": {
+      "type": "string"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "content"],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      }
     },
     "evidence": {
       "type": "array",
@@ -103,14 +125,6 @@
           }
         }
       }
-    },
-    "execution": {
-      "type": "object",
-      "required": ["mode"]
-    },
-    "repair": {
-      "type": "object",
-      "required": ["mode", "changed"]
     }
   },
   "additionalProperties": true

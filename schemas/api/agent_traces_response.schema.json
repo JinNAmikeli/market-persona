@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "api/agent_traces_response.schema.json",
+  "title": "AgentTracesResponse",
+  "type": "object",
+  "required": ["count", "limit", "filters", "traces"],
+  "properties": {
+    "count": {
+      "type": "integer"
+    },
+    "limit": {
+      "type": "integer"
+    },
+    "filters": {
+      "type": "object"
+    },
+    "traces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "trace_id",
+          "created_at",
+          "user_id",
+          "message",
+          "mode",
+          "task_type",
+          "execution_mode",
+          "factuality_status",
+          "factuality_coverage",
+          "repair_mode",
+          "repair_changed",
+          "review_passed",
+          "evidence_count",
+          "risk_flags",
+          "memory_patch_keys",
+          "generated_at"
+        ],
+        "properties": {
+          "trace_id": {
+            "type": ["string", "null"]
+          },
+          "created_at": {
+            "type": ["string", "null"]
+          },
+          "user_id": {
+            "type": ["string", "null"]
+          },
+          "message": {
+            "type": ["string", "null"]
+          },
+          "mode": {
+            "type": ["string", "null"]
+          },
+          "task_type": {
+            "type": ["string", "null"]
+          },
+          "execution_mode": {
+            "type": ["string", "null"]
+          },
+          "llm_provider": {
+            "type": ["string", "null"]
+          },
+          "llm_model": {
+            "type": ["string", "null"]
+          },
+          "factuality_status": {
+            "type": ["string", "null"]
+          },
+          "factuality_coverage": {
+            "type": ["string", "null"]
+          },
+          "repair_mode": {
+            "type": ["string", "null"]
+          },
+          "repair_changed": {
+            "type": ["boolean", "null"]
+          },
+          "review_passed": {
+            "type": ["boolean", "null"]
+          },
+          "evidence_count": {
+            "type": "integer"
+          },
+          "risk_flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "memory_patch_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

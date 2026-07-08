@@ -26,13 +26,117 @@
       "type": "string"
     },
     "request": {
-      "type": "object"
+      "type": "object",
+      "required": ["user_id", "message", "mode", "context"],
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "context": {
+          "type": "object"
+        }
+      }
     },
     "state_summary": {
-      "type": "object"
+      "type": "object",
+      "required": ["generated_at", "history_count", "memory"],
+      "properties": {
+        "generated_at": {
+          "type": ["string", "null"]
+        },
+        "history_count": {
+          "type": "integer"
+        },
+        "memory": {
+          "type": "object",
+          "required": [
+            "watchlist",
+            "focus_themes",
+            "knowledge_level",
+            "open_questions",
+            "blockers",
+            "next_priority",
+            "journey_state",
+            "risk_preferences"
+          ],
+          "properties": {
+            "watchlist": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "focus_themes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "knowledge_level": {
+              "type": "string"
+            },
+            "open_questions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "blockers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "next_priority": {
+              "type": "string"
+            },
+            "journey_state": {
+              "type": "object",
+              "required": ["stage", "active_task", "updated_from_task"]
+            },
+            "risk_preferences": {
+              "type": "object",
+              "required": ["needs_stronger_risk_warning"]
+            }
+          }
+        }
+      }
     },
     "plan": {
-      "type": "object"
+      "type": "object",
+      "required": ["task_type", "intent", "required_tools", "knowledge_queries", "forbidden_outputs"],
+      "properties": {
+        "task_type": {
+          "type": "string"
+        },
+        "intent": {
+          "type": "string"
+        },
+        "required_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knowledge_queries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbidden_outputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "tool_results": {
       "type": "array",
@@ -41,23 +145,191 @@
       }
     },
     "wiki_hits": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     },
     "execution": {
       "type": "object",
-      "required": ["mode"]
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string"
+        }
+      }
     },
     "draft": {
       "type": "object",
-      "required": ["task_type", "content", "evidence", "risk_flags", "next_watch", "execution"]
+      "required": ["task_type", "content", "evidence", "risk_flags", "next_watch", "execution"],
+      "properties": {
+        "task_type": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_watch": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "execution": {
+          "type": "object",
+          "required": ["mode"]
+        }
+      }
     },
     "review": {
       "type": "object",
-      "required": ["passed", "layers", "factuality"]
+      "required": [
+        "passed",
+        "factuality",
+        "compliance",
+        "clarity",
+        "blocked_terms",
+        "repair_suggestions",
+        "issues",
+        "layers"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "factuality": {
+          "type": "object",
+          "required": [
+            "status",
+            "summary",
+            "checked_claims",
+            "supported_claims",
+            "unsupported_claims",
+            "conflicting_claims",
+            "evidence_count",
+            "coverage"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "checked_claims": {
+              "type": "integer"
+            },
+            "supported_claims": {
+              "type": "integer"
+            },
+            "unsupported_claims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflicting_claims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_count": {
+              "type": "integer"
+            },
+            "coverage": {
+              "type": "string"
+            }
+          }
+        },
+        "compliance": {
+          "type": "string"
+        },
+        "clarity": {
+          "type": "string"
+        },
+        "blocked_terms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "repair_suggestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "mode", "passed"]
+          }
+        }
+      }
     },
     "repair": {
       "type": "object",
-      "required": ["mode", "changed"]
+      "required": [
+        "mode",
+        "changed",
+        "pre_repair_content",
+        "post_repair_content",
+        "issues",
+        "repair_suggestions",
+        "replacements"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "pre_repair_content": {
+          "type": ["string", "null"]
+        },
+        "post_repair_content": {
+          "type": ["string", "null"]
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "repair_suggestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "replacements": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
     },
     "memory_patch": {
       "type": "object"
@@ -67,7 +339,41 @@
     },
     "final_response": {
       "type": "object",
-      "required": ["task_type", "content", "evidence", "risk_flags", "next_watch", "execution", "repair"]
+      "required": ["task_type", "content", "evidence", "risk_flags", "next_watch", "execution", "repair"],
+      "properties": {
+        "task_type": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_watch": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "execution": {
+          "type": "object",
+          "required": ["mode"]
+        },
+        "repair": {
+          "type": "object",
+          "required": ["mode", "changed"]
+        }
+      }
     }
   },
   "additionalProperties": true

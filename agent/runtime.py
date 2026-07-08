@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from market_radar.agent import executor, planner, reflector
-from market_radar.agent.memory import apply_patch, load_memory
+from market_radar.agent.memory import apply_patch, load_memory, memory_snapshot
 from market_radar.agent.schemas import AgentRequest, AgentResponse
 from market_radar.agent.tools import run_tools, tool_data
 from market_radar.agent.trace import append_trace, make_trace_id
@@ -105,11 +105,7 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
         "state_summary": {
             "generated_at": radar.get("generated_at"),
             "history_count": len(history),
-            "memory": {
-                "watchlist": memory.get("watchlist", []),
-                "focus_themes": memory.get("focus_themes", []),
-                "knowledge_level": memory.get("knowledge_level"),
-            },
+            "memory": memory_snapshot(memory),
         },
         "plan": asdict(plan),
         "tool_results": tool_results,

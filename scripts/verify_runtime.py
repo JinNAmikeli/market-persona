@@ -11,13 +11,13 @@ PROJECT_ROOT = REPO_ROOT.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from market_radar.agent.memory import load_memory, set_memory_fields
+from market_radar.agent.memory import default_memory, load_all, load_memory, save_all, set_memory_fields
 from market_radar.agent.llm import get_config, normalize_provider
 from market_radar.agent.planner import plan
 from market_radar.agent.prompts import build_execution_prompt, build_reflection_prompt
 from market_radar.agent.reflector import repair, review
 from market_radar.agent.runtime import run_agent_briefing, run_agent_turn
-from market_radar.agent.schemas import AgentRequest
+from market_radar.agent.schemas import AgentRequest, AgentResponse, ReflectionResult
 from market_radar.agent.tools import TOOL_REGISTRY, run_tools, tool_data
 from market_radar.agent.trace import find_trace, read_traces, summarize_trace
 from market_radar.agent.wiki import search_wiki
@@ -41,15 +41,77 @@ def load_schema(rel_path: str) -> dict[str, Any]:
     return json.loads((REPO_ROOT / "schemas" / rel_path).read_text(encoding="utf-8"))
 
 
+def _resolve_ref(ref_path: str, current_rel_path: str) -> dict[str, Any]:
+    current_dir = Path(current_rel_path).parent
+    return load_schema(str(current_dir / ref_path))
+
+
+def _matches_json_type(value: Any, expected_type: str) -> bool:
+    if expected_type == "null":
+        return value is None
+    if expected_type == "object":
+        return isinstance(value, dict)
+    if expected_type == "array":
+        return isinstance(value, list)
+    if expected_type == "string":
+        return isinstance(value, str)
+    if expected_type == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected_type == "number":
+        return (isinstance(value, int) or isinstance(value, float)) and not isinstance(value, bool)
+    if expected_type == "boolean":
+        return isinstance(value, bool)
+    return True
+
+
+def _schema_errors(payload: Any, schema: dict[str, Any], rel_path: str, path: str = "$") -> list[str]:
+    if "$ref" in schema:
+        schema = _resolve_ref(str(schema["$ref"]), rel_path)
+
+    errors: list[str] = []
+    expected = schema.get("type")
+    if expected:
+        expected_types = expected if isinstance(expected, list) else [expected]
+        if not any(_matches_json_type(payload, str(item)) for item in expected_types):
+            errors.append(f"{path}: expected {'/'.join(str(item) for item in expected_types)}")
+            return errors
+
+    if isinstance(payload, dict):
+        for key in schema.get("required", []):
+            if key not in payload:
+                errors.append(f"{path}.{key}: missing")
+        for key, child_schema in (schema.get("properties") or {}).items():
+            if key in payload and isinstance(child_schema, dict):
+                errors.extend(_schema_errors(payload[key], child_schema, rel_path, f"{path}.{key}"))
+
+    if isinstance(payload, list) and isinstance(schema.get("items"), dict):
+        item_schema = schema["items"]
+        for index, item in enumerate(payload):
+            errors.extend(_schema_errors(item, item_schema, rel_path, f"{path}[{index}]"))
+
+    return errors
+
+
 def schema_required_ok(payload: dict[str, Any], rel_path: str) -> tuple[bool, list[str]]:
     schema = load_schema(rel_path)
-    missing = [key for key in schema.get("required", []) if key not in payload]
-    return not missing, missing
+    errors = _schema_errors(payload, schema, rel_path)
+    return not errors, errors
 
 
 def check_schema(name: str, payload: dict[str, Any], rel_path: str) -> bool:
-    ok, missing = schema_required_ok(payload, rel_path)
-    return check(name, ok, f"missing={missing}" if missing else "")
+    ok, errors = schema_required_ok(payload, rel_path)
+    return check(name, ok, f"errors={errors[:5]}" if errors else "")
+
+
+def schema_required_keys(rel_path: str, key_path: list[str] | None = None) -> set[str]:
+    schema = load_schema(rel_path)
+    for key in key_path or []:
+        schema = (schema.get("properties") or {}).get(key, {})
+    return set(schema.get("required", []))
+
+
+def dataclass_field_names(cls: type[Any]) -> set[str]:
+    return set(getattr(cls, "__dataclass_fields__", {}).keys())
 
 
 def load_wiki_pages() -> list[dict[str, Any]]:
@@ -135,6 +197,12 @@ def main() -> int:
         "llm config optional",
         normalize_provider("a") == "anthropic" and (get_config() is None or bool(get_config().api_key)),
     )
+    failures += not check(
+        "schema dataclass parity",
+        schema_required_keys("api/agent_chat_response.schema.json") == dataclass_field_names(AgentResponse)
+        and schema_required_keys("api/agent_chat_response.schema.json", ["review"]) == dataclass_field_names(ReflectionResult)
+        and schema_required_keys("runtime/user_memory.schema.json") == set(default_memory("schema_probe").keys()),
+    )
 
     overview = run_agent_turn({"user_id": "verify_script", "message": "今天市场怎么样？"})
     failures += not check(
@@ -216,6 +284,25 @@ def main() -> int:
         memory.get("watchlist") == ["中际旭创", "宁德时代"],
         f"watchlist={memory.get('watchlist')}",
     )
+    failures += not check_schema("schema user memory", memory, "runtime/user_memory.schema.json")
+    set_memory_fields(
+        "verify_script",
+        {
+            "open_questions": ["AI硬件热度能持续多久？"],
+            "blockers": ["缺少连续多日刷新"],
+            "next_priority": "观察主线是否扩散",
+            "journey_state": {"stage": "theme_tracking", "active_task": "theme_explanation"},
+        },
+    )
+    enriched_memory = load_memory("verify_script")
+    failures += not check(
+        "memory journey fields",
+        enriched_memory.get("open_questions") == ["AI硬件热度能持续多久？"]
+        and enriched_memory.get("blockers") == ["缺少连续多日刷新"]
+        and enriched_memory.get("next_priority") == "观察主线是否扩散"
+        and (enriched_memory.get("journey_state") or {}).get("stage") == "theme_tracking",
+        f"memory={enriched_memory}",
+    )
 
     briefing = run_agent_briefing({"user_id": "verify_script", "briefing_type": "close"})
     failures += not check(
@@ -223,6 +310,7 @@ def main() -> int:
         briefing["review"]["passed"] and briefing["title"] == "收盘市场复盘",
         f"title={briefing.get('title')}",
     )
+    failures += not check_schema("schema briefing response", briefing, "api/agent_briefing_response.schema.json")
 
     trace = find_trace(briefing["trace_id"])
     failures += not check(
@@ -235,9 +323,21 @@ def main() -> int:
     )
     if trace:
         failures += not check_schema("schema agent trace", trace, "runtime/agent_trace.schema.json")
+        state_memory = (trace.get("state_summary") or {}).get("memory") or {}
+        failures += not check(
+            "trace memory snapshot",
+            all(key in state_memory for key in ("watchlist", "focus_themes", "knowledge_level", "open_questions", "blockers", "next_priority", "journey_state")),
+            f"memory_keys={sorted(state_memory.keys())}",
+        )
 
     trace_rows = read_traces(limit=5)
     trace_summaries = [summarize_trace(item) for item in trace_rows]
+    trace_list_response = {
+        "count": len(trace_rows),
+        "limit": 5,
+        "filters": {},
+        "traces": trace_summaries,
+    }
     failures += not check(
         "trace list",
         len(trace_summaries) > 0
@@ -247,6 +347,7 @@ def main() -> int:
         and "repair_changed" in trace_summaries[0],
         f"rows={len(trace_summaries)}",
     )
+    failures += not check_schema("schema traces response", trace_list_response, "api/agent_traces_response.schema.json")
     filtered_traces = read_traces(
         limit=10,
         filters={
@@ -261,6 +362,27 @@ def main() -> int:
         and all((item.get("plan") or {}).get("task_type") == "briefing_script" for item in filtered_traces),
         f"rows={len(filtered_traces)}",
     )
+    memory_payload = load_all()
+    memory_payload["verify_post_contract"] = {
+        **default_memory("verify_post_contract"),
+        "legacy_unknown_field": "keep-me",
+    }
+    save_all(memory_payload)
+    posted_memory = set_memory_fields(
+        "verify_post_contract",
+        {
+            "watchlist": ["中际旭创"],
+            "unknown_payload_field": "drop-me",
+        },
+    )
+    failures += not check(
+        "memory post whitelist contract",
+        posted_memory.get("watchlist") == ["中际旭创"]
+        and posted_memory.get("legacy_unknown_field") == "keep-me"
+        and "unknown_payload_field" not in posted_memory,
+        f"memory_keys={sorted(posted_memory.keys())}",
+    )
+    failures += not check_schema("schema post memory response", posted_memory, "runtime/user_memory.schema.json")
 
     if failures:
         print(f"\n{failures} verification check(s) failed.")
