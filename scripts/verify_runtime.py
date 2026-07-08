@@ -15,7 +15,7 @@ from market_radar.agent.memory import default_memory, load_all, load_memory, sav
 from market_radar.agent.llm import get_config, normalize_provider
 from market_radar.agent.planner import plan
 from market_radar.agent.prompts import build_execution_prompt, build_reflection_prompt
-from market_radar.agent.reflector import repair, review
+from market_radar.agent.reflector import preserve_repaired_factuality, repair, review
 from market_radar.agent.runtime import run_agent_briefing, run_agent_turn
 from market_radar.agent.schemas import AgentRequest, AgentResponse, ReflectionResult
 from market_radar.agent.tools import TOOL_REGISTRY, run_tools, tool_data
@@ -194,6 +194,13 @@ def main() -> int:
         and "待审查回复" in reflection_prompt,
     )
     failures += not check(
+        "reflection coverage values",
+        "supported" in reflection_prompt
+        and "partial" in reflection_prompt
+        and "insufficient" in reflection_prompt
+        and '"coverage": "sufficient"' not in reflection_prompt,
+    )
+    failures += not check(
         "llm config optional",
         normalize_provider("a") == "anthropic" and (get_config() is None or bool(get_config().api_key)),
     )
@@ -258,6 +265,45 @@ def main() -> int:
         and (insufficient.factuality or {}).get("coverage") == "insufficient"
         and len((insufficient.factuality or {}).get("unsupported_claims") or []) > 0,
         f"review={insufficient}",
+    )
+    ordinary = review("你好，我可以帮你做市场观察。", evidence=[], tool_results=[], wiki_hits=[])
+    missing_watchlist = review("我还没有读取到你的自选股。", evidence=[], tool_results=[], wiki_hits=[])
+    disclaimer_only = review("以上仅作市场观察和投资知识解释，不构成买卖建议。", evidence=[], tool_results=[], wiki_hits=[])
+    failures += not check(
+        "factuality no-claim ordinary replies",
+        ordinary.passed
+        and missing_watchlist.passed
+        and disclaimer_only.passed
+        and (ordinary.factuality or {}).get("checked_claims") == 0
+        and (missing_watchlist.factuality or {}).get("checked_claims") == 0
+        and (disclaimer_only.factuality or {}).get("checked_claims") == 0,
+        f"ordinary={ordinary.factuality} missing={missing_watchlist.factuality} disclaimer={disclaimer_only.factuality}",
+    )
+    core_zero_claim = review(
+        "你好，我可以帮你做市场观察。",
+        plan=plan(AgentRequest(user_id="verify_script", message="今天市场怎么样？")),
+        evidence=[],
+        tool_results=[],
+        wiki_hits=[],
+    )
+    failures += not check(
+        "factuality core no-claim still fails",
+        core_zero_claim.passed is False
+        and (core_zero_claim.factuality or {}).get("status") == "insufficient_evidence"
+        and len((core_zero_claim.factuality or {}).get("unsupported_claims") or []) > 0,
+        f"review={core_zero_claim}",
+    )
+    factuality_repair = repair("这段结论会继续扩散并带来更强趋势。", insufficient, plan=sample_plan, evidence=[])
+    final_repair_review = review(factuality_repair["post_repair_content"], evidence=[], tool_results=[], wiki_hits=[])
+    final_repair_review = preserve_repaired_factuality(final_repair_review, factuality_repair)
+    repaired_from = (final_repair_review.factuality or {}).get("repaired_from_factuality") or {}
+    failures += not check(
+        "factuality repair preserves original review",
+        final_repair_review.passed
+        and (final_repair_review.factuality or {}).get("repair_status") == "claims_removed"
+        and repaired_from.get("status") == "insufficient_evidence"
+        and repaired_from.get("summary") == (insufficient.factuality or {}).get("summary"),
+        f"factuality={final_repair_review.factuality}",
     )
     conflicting = review(
         "当前市场情绪分 99/100，拥挤度为「低」。",

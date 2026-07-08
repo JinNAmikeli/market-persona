@@ -245,6 +245,19 @@ def repair(
     }
 
 
+def preserve_repaired_factuality(review: ReflectionResult, repair_result: dict[str, Any]) -> ReflectionResult:
+    factuality_before = repair_result.get("factuality_before")
+    if not isinstance(factuality_before, dict) or not factuality_before:
+        return review
+    if factuality_before.get("status") not in ("insufficient_evidence", "evidence_conflict"):
+        return review
+    factuality = dict(review.factuality or {})
+    factuality["repair_status"] = "claims_removed"
+    factuality["repaired_from_factuality"] = factuality_before
+    review.factuality = factuality
+    return review
+
+
 def _needs_structured_footer(content: str) -> bool:
     return "修复说明：" not in content
 
@@ -292,7 +305,10 @@ def _rule_factuality_review(
     if task_type in CORE_FACTUALITY_TASKS and checked_claims == 0:
         unsupported_claims.append(f"{task_type}: 缺少可绑定的核心市场判断")
 
-    if conflicting_claims:
+    if checked_claims == 0 and not unsupported_claims and not conflicting_claims:
+        status = "supported"
+        summary = "回复没有需要证据绑定的核心事实判断。"
+    elif conflicting_claims:
         status = "evidence_conflict"
         summary = "部分回复与当前工具结果或证据摘要不一致。"
     elif evidence_count == 0 or unsupported_claims:
@@ -302,7 +318,9 @@ def _rule_factuality_review(
         status = "supported"
         summary = "回复中的关键事实已被当前证据覆盖。"
 
-    if checked_claims > 0 and checked_claims == supported_claims and not conflicting_claims:
+    if checked_claims == 0 and not unsupported_claims and not conflicting_claims:
+        coverage = "supported"
+    elif checked_claims > 0 and checked_claims == supported_claims and not conflicting_claims:
         coverage = "supported"
     elif supported_claims > 0:
         coverage = "partial"

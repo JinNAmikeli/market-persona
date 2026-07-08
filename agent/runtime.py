@@ -85,6 +85,7 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
             tool_results=tool_results,
             wiki_hits=wiki_hits,
         )
+        review = reflector.preserve_repaired_factuality(review, repair_result)
 
     updated_memory = apply_patch(request.user_id, memory_patch)
     response = AgentResponse(

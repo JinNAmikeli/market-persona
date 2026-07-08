@@ -50,6 +50,7 @@ REFLECTION_PROMPT_TEMPLATE = """请审查下面的金融 Agent 回复。
 - 是否说明风险或下一步观察。
 - 是否把热度、情绪、基本面混为一谈。
 - 是否适合金融小白阅读。
+- factuality.coverage 只能使用 supported、partial、insufficient。
 
 任务计划：
 {plan_json}
@@ -68,7 +69,7 @@ REFLECTION_PROMPT_TEMPLATE = """请审查下面的金融 Agent 回复。
     "summary": "",
     "unsupported_claims": [],
     "conflicting_claims": [],
-    "coverage": "sufficient"
+    "coverage": "supported"
   }},
   "issues": [],
   "repair_suggestions": []

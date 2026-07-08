@@ -192,3 +192,40 @@
 
 - `python scripts/verify_runtime.py` 应通过。
 - 运行验证会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`，这些运行期文件不应提交。
+
+## ISSUE-010 Factuality Edge Case Repair
+
+状态：完成
+建议优先级：高
+
+背景：
+
+- Reviewer 发现 ISSUE-003 的 factuality 规则存在三个边界问题：
+  - 无事实 claim 的普通回复会被误判 `insufficient_evidence`。
+  - repair 后 final review 会丢掉修复前 factuality 语义。
+  - LLM reflection prompt 仍使用旧 coverage 示例。
+
+已完成：
+
+- `agent/reflector.py` 修复 0-claim 边界：非核心任务或普通回复在 `checked_claims == 0` 且无 unsupported/conflict 时通过 factuality。
+- `agent/reflector.py` 保留核心任务保护：`market_overview`、`theme_explanation`、`briefing_script` 若无可绑定核心判断，仍失败并记录“缺少可绑定的核心市场判断”。
+- `agent/reflector.py` 新增兼容字段写入 helper，repair 后 final review 会附带 `repair_status: claims_removed` 和 `repaired_from_factuality`，保留原始 factuality 摘要与 unsupported/conflict 细节。
+- `agent/runtime.py` 在 repair 后二次 review 完成时调用上述保留逻辑。
+- `agent/prompts.py` 将 LLM Reflection coverage 示例更新为 `supported`，并明确允许值为 `supported`、`partial`、`insufficient`。
+- `scripts/verify_runtime.py` 增加回归覆盖：
+  - “你好，我可以帮你做市场观察。” 通过。
+  - “我还没有读取到你的自选股。” 通过。
+  - disclaimer-only 回复通过。
+  - core factuality task 的 0-claim 回复仍失败。
+  - repair 后 final review 保留修复前 factuality。
+  - reflection prompt 不再出现旧 `"coverage": "sufficient"` 示例。
+
+验收：
+
+- `python -m py_compile agent/reflector.py agent/runtime.py agent/prompts.py scripts/verify_runtime.py` 已通过。
+- `python scripts/verify_runtime.py` 已通过。
+
+注意：
+
+- 本轮未修改 UI、`server.py`、合规边界、Wiki 内容或外部依赖。
+- 新增字段为兼容扩展，未加入 schema required，以兼容旧 trace 与硬规则拦截结果。
