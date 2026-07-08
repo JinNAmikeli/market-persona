@@ -27,7 +27,7 @@ data/xueqiu_radar_history.jsonl
 也可以在终端手动刷新：
 
 ```bash
-python ../tools/xueqiu_radar_collect.py
+python scripts/refresh_xueqiu.py
 ```
 
 ## 注意
@@ -58,8 +58,54 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 - `/api/agent/chat` 支持本地文字问答。
 - `/api/agent/briefing` 支持复盘脚本。
 - `/api/signals` 统一前后端市场信号。
+- `/api/agent/traces` 支持查询最近 Agent 运行记录。
 - Agent 每轮运行会写入 `data/agent_traces.jsonl`。
+- 本地调试时可用 `?debug=1` 显示 Agent 调试台，查看最近 trace，按任务/执行/校验/修复筛选，并对比两条 trace。
+- `?debug=1` 的 Agent 调试台会展示 `review.factuality`，包括 `supported / insufficient_evidence / evidence_conflict`、coverage 和修复前后状态。
+- `/api/agent/traces` 现已支持 `query`、`task_type`、`execution_mode`、`review_passed`、`repair_changed`、`date_from`、`date_to`、`limit` 等过滤参数。
 - 用户关注点和观察清单会写入 `data/user_memory.json`。
+- `schemas/` 保存核心 API、runtime、market、wiki 的 JSON Schema 契约。
+- `agent/prompts.py` 保存后续 LLM Execution / Reflection 使用的 prompt 契约。
+- `agent/llm.py` 支持可选 LLM Execution；未配置时自动回退到模板回复。
+- trace 和 chat response 会记录 `execution.mode`，用于区分 `template`、`llm`、`llm_fallback`。
+- Reflection 采用双层校验：硬规则先拦截，可选 LLM Reflection 再检查证据、边界和清晰度。
+- 结构化 repair 会记录 `pre_repair_content`、`post_repair_content`、替换项和修复依据。
+
+### Agent LLM 可选配置
+
+Agent 对话默认使用稳定模板，便于本地验证。如果要让 Agent 在执行阶段调用 LLM，在 `.env` 中选择一个模板：
+
+```bash
+# OpenAI
+MARKET_AGENT_LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-your-openai-api-key
+MARKET_AGENT_LLM_MODEL=gpt-4.1-mini
+```
+
+```bash
+# DeepSeek
+MARKET_AGENT_LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-deepseek-api-key
+MARKET_AGENT_LLM_MODEL=deepseek-v4-flash
+```
+
+```bash
+# Anthropic / Claude，也可以把 provider 写成 a
+MARKET_AGENT_LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-api-key
+MARKET_AGENT_LLM_MODEL=claude-3-5-haiku-latest
+```
+
+也可以使用通用变量覆盖：
+
+```bash
+MARKET_AGENT_LLM_API_KEY=...
+MARKET_AGENT_LLM_BASE_URL=...
+MARKET_AGENT_LLM_MAX_TOKENS=1200
+MARKET_AGENT_LLM_TEMPERATURE=0.2
+```
+
+LLM 调用失败或未配置密钥时，Agent 会自动回退到当前模板输出。荐股、目标价、确定收益等越界问题仍走固定拒绝/转向模板。
 
 ## 本地验证
 
@@ -69,4 +115,17 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 python scripts/verify_runtime.py
 ```
 
-它会覆盖市场信号、Wiki 检索、普通问答、拒绝荐股、自选股 Memory 和 briefing。
+它会覆盖市场信号、Wiki 检索、prompt builder、普通问答、拒绝荐股、自选股 Memory 和 briefing。
+同时会检查关键输出是否包含 JSON Schema 要求的 required 字段。
+
+查看最近 trace：
+
+```bash
+curl "http://127.0.0.1:8787/api/agent/traces?limit=5"
+```
+
+查看某一条完整 trace：
+
+```bash
+curl "http://127.0.0.1:8787/api/agent/traces?id=TRACE_ID"
+```

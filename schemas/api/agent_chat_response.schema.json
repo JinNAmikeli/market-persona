@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "api/agent_chat_response.schema.json",
+  "title": "AgentChatResponse",
+  "type": "object",
+  "required": [
+    "trace_id",
+    "task_type",
+    "content",
+    "evidence",
+    "risk_flags",
+    "next_watch",
+    "review"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string"
+    },
+    "task_type": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "risk_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_watch": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["passed", "blocked_terms", "layers", "factuality"]
+    },
+    "execution": {
+      "type": "object",
+      "required": ["mode"]
+    },
+    "repair": {
+      "type": "object",
+      "required": ["mode", "changed"]
+    }
+  },
+  "additionalProperties": true
+}

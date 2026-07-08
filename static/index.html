@@ -211,6 +211,51 @@
           </button>
         </form>
       </section>
+
+      <section class="section-block debug-only" id="tracePanel" aria-labelledby="traceTitle" hidden>
+        <div class="section-head compact">
+          <div>
+            <p class="section-label">Runtime Trace</p>
+            <h2 id="traceTitle">Agent 调试台</h2>
+          </div>
+          <button class="icon-button" id="refreshTracesBtn" type="button" title="刷新 trace">
+            <span aria-hidden="true">↻</span>
+            <span>刷新</span>
+          </button>
+        </div>
+        <div class="trace-toolbar">
+          <input id="traceSearch" type="search" placeholder="筛选 trace_id、问题、任务" />
+          <select id="traceTaskFilter" aria-label="按任务筛选">
+            <option value="">全部任务</option>
+          </select>
+          <select id="traceExecutionFilter" aria-label="按执行模式筛选">
+            <option value="">全部执行</option>
+            <option value="template">template</option>
+            <option value="llm">llm</option>
+            <option value="llm_fallback">llm_fallback</option>
+          </select>
+          <select id="traceReviewFilter" aria-label="按校验结果筛选">
+            <option value="">全部校验</option>
+            <option value="passed">校验通过</option>
+            <option value="failed">校验未过</option>
+          </select>
+          <select id="traceRepairFilter" aria-label="按修复状态筛选">
+            <option value="">全部修复</option>
+            <option value="changed">已修复</option>
+            <option value="unchanged">未修复</option>
+          </select>
+          <button class="text-button" id="clearTraceCompareBtn" type="button">清空对比</button>
+        </div>
+        <div class="trace-layout">
+          <div class="trace-list" id="traceList">
+            <div class="trace-empty">等待 trace。</div>
+          </div>
+          <div class="trace-detail" id="traceDetail">
+            <div class="trace-empty">选择一条 trace 查看 plan、工具、证据、校验和修复过程。</div>
+          </div>
+        </div>
+        <div class="trace-compare" id="traceCompare" hidden></div>
+      </section>
     </main>
 
     <script src="/app.js"></script>

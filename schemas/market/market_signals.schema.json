@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "market/market_signals.schema.json",
+  "title": "MarketSignals",
+  "type": "object",
+  "required": [
+    "tone",
+    "growth_avg",
+    "broad_avg",
+    "positive_count",
+    "avg_pct",
+    "duplicate_count",
+    "limit_like_count",
+    "sentiment_score",
+    "crowding",
+    "themes"
+  ],
+  "properties": {
+    "tone": {
+      "type": "string"
+    },
+    "growth_avg": {
+      "type": "number"
+    },
+    "broad_avg": {
+      "type": "number"
+    },
+    "positive_count": {
+      "type": "integer"
+    },
+    "avg_pct": {
+      "type": "number"
+    },
+    "duplicate_count": {
+      "type": "integer"
+    },
+    "limit_like_count": {
+      "type": "integer"
+    },
+    "sentiment_score": {
+      "type": "integer"
+    },
+    "crowding": {
+      "type": "string"
+    },
+    "themes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "score", "stocks", "posts"]
+      }
+    }
+  },
+  "additionalProperties": true
+}

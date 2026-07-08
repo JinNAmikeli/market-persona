@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any
 
 from market_radar.agent import executor, planner, reflector
 from market_radar.agent.memory import apply_patch, load_memory
 from market_radar.agent.schemas import AgentRequest, AgentResponse
+from market_radar.agent.tools import run_tools, tool_data
 from market_radar.agent.trace import append_trace, make_trace_id
 from market_radar.agent.wiki import search_wiki
 from market_radar.market.data_store import read_history, read_latest
-from market_radar.market.signals import derive_market, watchlist_status
+from market_radar.market.signals import derive_market
 
 
 def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
@@ -26,10 +28,19 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
     plan = planner.plan(request)
     signals = derive_market(radar)
     watchlist = request.context.get("watchlist") or memory.get("watchlist") or []
-    watch_rows = watchlist_status(radar, watchlist) if "get_watchlist_status" in plan.required_tools else []
+    tool_context = {
+        "request": request,
+        "radar": radar,
+        "history": history,
+        "signals": signals,
+        "memory": memory,
+        "watchlist": watchlist,
+    }
+    tool_results = run_tools(plan.required_tools, tool_context)
+    watch_rows = tool_data(tool_results, "get_watchlist_status", [])
     wiki_hits = search_wiki(plan.knowledge_queries, top_k=5)
 
-    content, evidence, risk_flags, next_watch, memory_patch = executor.generate(
+    content, evidence, risk_flags, next_watch, memory_patch, execution = executor.generate(
         request.message,
         plan,
         memory,
@@ -38,11 +49,42 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
         signals,
         watch_rows,
         wiki_hits,
+        tool_results,
     )
-    review = reflector.review(content)
+    draft = {
+        "task_type": plan.task_type,
+        "content": content,
+        "evidence": evidence,
+        "risk_flags": risk_flags,
+        "next_watch": next_watch,
+        "execution": execution,
+    }
+    review = reflector.review(
+        content,
+        plan=plan,
+        evidence=evidence,
+        tool_results=tool_results,
+        wiki_hits=wiki_hits,
+    )
+    repair_result: dict[str, Any] = {
+        "mode": "none",
+        "changed": False,
+        "pre_repair_content": None,
+        "post_repair_content": None,
+        "issues": [],
+        "repair_suggestions": [],
+        "replacements": [],
+    }
     if not review.passed:
-        content = reflector.repair(content)
-        review = reflector.review(content)
+        repair_result = reflector.repair(content, review, plan=plan, evidence=evidence)
+        content = repair_result["post_repair_content"]
+        review = reflector.review(
+            content,
+            plan=plan,
+            evidence=evidence,
+            tool_results=tool_results,
+            wiki_hits=wiki_hits,
+        )
 
     updated_memory = apply_patch(request.user_id, memory_patch)
     response = AgentResponse(
@@ -53,9 +95,12 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
         risk_flags=risk_flags,
         next_watch=next_watch,
         review=review,
+        execution=execution,
+        repair=repair_result,
     )
     trace = {
         "trace_id": trace_id,
+        "created_at": datetime.now().isoformat(timespec="microseconds"),
         "request": asdict(request),
         "state_summary": {
             "generated_at": radar.get("generated_at"),
@@ -67,8 +112,11 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
             },
         },
         "plan": asdict(plan),
-        "tool_results": [{"name": "get_market_signals", "ok": True, "data": signals}],
+        "tool_results": tool_results,
         "wiki_hits": wiki_hits,
+        "execution": execution,
+        "draft": draft,
+        "repair": repair_result,
         "review": asdict(review),
         "memory_patch": memory_patch,
         "updated_memory": updated_memory,
@@ -78,6 +126,8 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
             "evidence": response.evidence,
             "risk_flags": response.risk_flags,
             "next_watch": response.next_watch,
+            "execution": response.execution,
+            "repair": response.repair,
         },
     }
     append_trace(trace)

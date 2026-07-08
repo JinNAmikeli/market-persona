@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime/agent_trace.schema.json",
+  "title": "AgentTrace",
+  "type": "object",
+  "required": [
+    "trace_id",
+    "created_at",
+    "request",
+    "state_summary",
+    "plan",
+    "tool_results",
+    "wiki_hits",
+    "execution",
+    "draft",
+    "repair",
+    "review",
+    "memory_patch",
+    "final_response"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "request": {
+      "type": "object"
+    },
+    "state_summary": {
+      "type": "object"
+    },
+    "plan": {
+      "type": "object"
+    },
+    "tool_results": {
+      "type": "array",
+      "items": {
+        "$ref": "tool_result.schema.json"
+      }
+    },
+    "wiki_hits": {
+      "type": "array"
+    },
+    "execution": {
+      "type": "object",
+      "required": ["mode"]
+    },
+    "draft": {
+      "type": "object",
+      "required": ["task_type", "content", "evidence", "risk_flags", "next_watch", "execution"]
+    },
+    "review": {
+      "type": "object",
+      "required": ["passed", "layers", "factuality"]
+    },
+    "repair": {
+      "type": "object",
+      "required": ["mode", "changed"]
+    },
+    "memory_patch": {
+      "type": "object"
+    },
+    "updated_memory": {
+      "type": "object"
+    },
+    "final_response": {
+      "type": "object",
+      "required": ["task_type", "content", "evidence", "risk_flags", "next_watch", "execution", "repair"]
+    }
+  },
+  "additionalProperties": true
+}

@@ -144,31 +144,68 @@ def derive_market(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def watchlist_status(data: dict[str, Any], watchlist: list[str]) -> list[dict[str, Any]]:
-    stocks = unique_by_symbol(all_hot_stocks(data))
+def get_theme_signals(
+    data: dict[str, Any],
+    theme_name: str,
+    history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    themes = get_theme_stats(data)
+    target = next(
+        (
+            item
+            for item in themes
+            if item["name"] == theme_name
+            or theme_name.lower() in item["name"].lower()
+            or item["name"].lower() in theme_name.lower()
+        ),
+        None,
+    )
+    if not target:
+        target = {"name": theme_name, "score": 0, "stocks": [], "posts": 0}
+
+    stocks = [
+        stock
+        for stock in unique_by_symbol(all_hot_stocks(data))
+        if classify_text(f"{stock.get('name', '')} {stock.get('symbol', '')}") == target["name"]
+    ]
     posts = data.get("hot_posts") or []
-    rows = []
-    for term in watchlist:
-        query = term.lower()
-        stock = next(
-            (item for item in stocks if query in f"{item.get('name', '')} {item.get('symbol', '')}".lower()),
-            None,
-        )
-        mentioned_posts = [
-            post for post in posts if query in f"{post.get('title', '')} {post.get('text', '')}".lower()
-        ]
-        rows.append(
+    theme_posts = [
+        {
+            "title": post.get("title"),
+            "author": post.get("author"),
+            "likes": post.get("likes"),
+            "url": post.get("url"),
+        }
+        for post in posts
+        if classify_text(f"{post.get('title', '')} {post.get('text', '')}") == target["name"]
+    ]
+    stock_names = {stock.get("name") for stock in stocks}
+    history_hits = []
+    for snapshot in (history or [])[-20:]:
+        hot_top = snapshot.get("hot_top") or []
+        watch_top = snapshot.get("watch_top") or []
+        matched = [name for name in [*hot_top, *watch_top] if name in stock_names]
+        if matched:
+            history_hits.append(
+                {
+                    "generated_at": snapshot.get("generated_at"),
+                    "matched": list(dict.fromkeys(matched)),
+                    "overlap": snapshot.get("overlap"),
+                    "limit_like_count": snapshot.get("limit_like_count"),
+                }
+            )
+
+    return {
+        "name": target["name"],
+        "score": target.get("score", 0),
+        "stocks": stocks,
+        "posts": theme_posts[:8],
+        "post_count": len(theme_posts),
+        "history_hits": history_hits,
+        "evidence": [
             {
-                "term": term,
-                "stock": stock,
-                "mentioned_posts": len(mentioned_posts),
-                "theme": classify_text(
-                    f"{stock.get('name', '')} {stock.get('symbol', '')}"
-                    if stock
-                    else f"{mentioned_posts[0].get('title', '')} {mentioned_posts[0].get('text', '')}"
-                    if mentioned_posts
-                    else term
-                ),
+                "type": "theme_stats",
+                "summary": f"主题信号 {target.get('score', 0)} 个，相关热榜股票 {len(stocks)} 只，热门帖 {len(theme_posts)} 篇。",
             }
-        )
-    return rows
+        ],
+    }

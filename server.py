@@ -6,7 +6,7 @@ import mimetypes
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +37,9 @@ class RadarHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/agent/memory":
             self._handle_agent_memory()
+            return
+        if path == "/api/agent/traces":
+            self._handle_agent_traces()
             return
         self._serve_static(path)
 
@@ -101,7 +104,7 @@ class RadarHandler(BaseHTTPRequestHandler):
             self._json_response(
                 {
                     "error": "No radar data yet",
-                    "hint": "Run POST /api/refresh or python tools/xueqiu_radar_collect.py",
+                    "hint": "Run POST /api/refresh or python scripts/refresh_xueqiu.py",
                 },
                 status=404,
             )
@@ -155,12 +158,31 @@ class RadarHandler(BaseHTTPRequestHandler):
             configured = is_configured()
         except Exception:
             configured = False
+        try:
+            ensure_project_path()
+            from market_radar.agent.llm import get_config, normalize_provider
+
+            agent_llm_config = get_config()
+            agent_provider = normalize_provider(agent_llm_config.provider if agent_llm_config else "")
+            agent_llm = {
+                "configured": agent_llm_config is not None,
+                "provider": agent_provider or None,
+                "model": agent_llm_config.model if agent_llm_config else None,
+            }
+        except Exception as exc:
+            agent_llm = {
+                "configured": False,
+                "provider": None,
+                "model": None,
+                "error": str(exc),
+            }
         self._json_response(
             {
                 "configured": configured,
                 "provider": "deepseek",
                 "model_env": "DEEPSEEK_MODEL",
                 "default_model": "deepseek-v4-flash",
+                "agent_llm": agent_llm,
                 "runtime": {
                     "memory": True,
                     "trace": True,
@@ -197,6 +219,52 @@ class RadarHandler(BaseHTTPRequestHandler):
             self._json_response(
                 {
                     "error": "Agent memory failed",
+                    "detail": str(exc),
+                },
+                status=500,
+            )
+
+    def _handle_agent_traces(self) -> None:
+        try:
+            params = {
+                key: values[-1]
+                for key, values in parse_qs(urlparse(self.path).query, keep_blank_values=False).items()
+                if values
+            }
+            ensure_project_path()
+            from market_radar.agent.trace import find_trace, read_traces, summarize_trace
+
+            trace_id = params.get("id") or params.get("trace_id")
+            if trace_id:
+                trace = find_trace(trace_id)
+                if not trace:
+                    self._json_response({"error": "Trace not found", "trace_id": trace_id}, status=404)
+                    return
+                self._json_response(trace)
+                return
+
+            try:
+                limit = int(params.get("limit", "20"))
+            except ValueError:
+                limit = 20
+            filters = {
+                key: params.get(key)
+                for key in ("query", "task_type", "execution_mode", "review_passed", "repair_changed", "date_from", "date_to")
+                if params.get(key) not in (None, "")
+            }
+            traces = read_traces(limit=limit, filters=filters)
+            self._json_response(
+                {
+                    "count": len(traces),
+                    "limit": limit,
+                    "filters": filters,
+                    "traces": [summarize_trace(trace) for trace in traces],
+                }
+            )
+        except Exception as exc:
+            self._json_response(
+                {
+                    "error": "Agent traces failed",
                     "detail": str(exc),
                 },
                 status=500,
@@ -270,7 +338,7 @@ class RadarHandler(BaseHTTPRequestHandler):
     def _handle_refresh(self) -> None:
         try:
             ensure_project_path()
-            from tools.xueqiu_radar_collect import collect, save_payload
+            from market_radar.market.collector import collect, save_payload
 
             payload = collect()
             save_payload(payload)

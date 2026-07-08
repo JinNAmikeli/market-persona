@@ -28,7 +28,7 @@ def plan(request: AgentRequest) -> AgentPlan:
         return AgentPlan(
             task_type="theme_explanation",
             intent="解释市场主题热度和证据",
-            required_tools=["get_market_snapshot", "get_market_signals"],
+            required_tools=["get_market_snapshot", "get_market_signals", "get_theme_signals"],
             knowledge_queries=[message, "主题热度", "拥挤度"],
         )
     if any(word in message for word in ["解释", "什么意思", "什么是"]):
@@ -42,7 +42,7 @@ def plan(request: AgentRequest) -> AgentPlan:
         return AgentPlan(
             task_type="briefing_script",
             intent="生成市场复盘或口播稿",
-            required_tools=["get_market_snapshot", "get_market_signals"],
+            required_tools=["get_market_snapshot", "get_history_tail", "get_market_signals"],
             knowledge_queries=["市场复盘", "风险提示"],
         )
     if any(word in message for word in ["今天", "市场", "行情", "指数", "大盘"]) or not lower:

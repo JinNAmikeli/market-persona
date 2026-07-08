@@ -5,6 +5,17 @@ const state = {
   activeList: "hot_popularity",
   search: "",
   watchList: JSON.parse(localStorage.getItem("marketRadar.watchList") || "[]"),
+  traces: [],
+  selectedTraceId: null,
+  traceFilters: {
+    query: "",
+    task: "",
+    execution: "",
+    review: "",
+    repair: "",
+  },
+  compareTraceIds: [],
+  debugTraces: new URLSearchParams(window.location.search).get("debug") === "1",
 };
 
 const THEME_RULES = [
@@ -66,6 +77,17 @@ const els = {
   agentEvidence: document.querySelector("#agentEvidence"),
   agentNextWatch: document.querySelector("#agentNextWatch"),
   agentTrace: document.querySelector("#agentTrace"),
+  refreshTracesBtn: document.querySelector("#refreshTracesBtn"),
+  tracePanel: document.querySelector("#tracePanel"),
+  traceSearch: document.querySelector("#traceSearch"),
+  traceTaskFilter: document.querySelector("#traceTaskFilter"),
+  traceExecutionFilter: document.querySelector("#traceExecutionFilter"),
+  traceReviewFilter: document.querySelector("#traceReviewFilter"),
+  traceRepairFilter: document.querySelector("#traceRepairFilter"),
+  clearTraceCompareBtn: document.querySelector("#clearTraceCompareBtn"),
+  traceList: document.querySelector("#traceList"),
+  traceDetail: document.querySelector("#traceDetail"),
+  traceCompare: document.querySelector("#traceCompare"),
 };
 
 function formatPct(value) {
@@ -474,6 +496,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function prettyJson(value) {
+  return escapeHtml(JSON.stringify(value ?? null, null, 2));
+}
+
 function appendChatMessage(role, title, content) {
   const item = document.createElement("div");
   item.className = `chat-message ${role}`;
@@ -525,6 +551,7 @@ async function sendAgentChat(message) {
     if (!res.ok) throw new Error(payload.detail || payload.error || "Agent 回复失败");
     pending.querySelector("p").textContent = payload.content;
     renderAgentEvidence(payload);
+    if (state.debugTraces) await loadAgentTraces(payload.trace_id);
     showToast("Agent 已回复");
   } catch (error) {
     pending.querySelector("p").textContent = error.message;
@@ -611,6 +638,7 @@ async function runAgentRecap() {
       evidence: payload.evidence,
       next_watch: payload.next_watch,
     });
+    if (state.debugTraces) await loadAgentTraces(payload.trace_id);
     showToast("Agent 复盘已生成");
   } catch (error) {
     els.agentOutput.textContent = error.message;
@@ -618,6 +646,287 @@ async function runAgentRecap() {
   } finally {
     els.runAgentBtn.disabled = false;
   }
+}
+
+async function loadAgentTraces(selectTraceId = state.selectedTraceId) {
+  if (!state.debugTraces) return;
+  if (!els.traceList || !els.traceDetail) return;
+  try {
+    const params = new URLSearchParams({ limit: "30" });
+    if (state.traceFilters.query.trim()) params.set("query", state.traceFilters.query.trim());
+    if (state.traceFilters.task) params.set("task_type", state.traceFilters.task);
+    if (state.traceFilters.execution) params.set("execution_mode", state.traceFilters.execution);
+    if (state.traceFilters.review === "passed") params.set("review_passed", "true");
+    if (state.traceFilters.review === "failed") params.set("review_passed", "false");
+    if (state.traceFilters.repair === "changed") params.set("repair_changed", "true");
+    if (state.traceFilters.repair === "unchanged") params.set("repair_changed", "false");
+    const res = await fetch(`/api/agent/traces?${params.toString()}`);
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.detail || payload.error || "Trace 读取失败");
+    state.traces = payload.traces || [];
+    state.compareTraceIds = state.compareTraceIds.filter((id) => state.traces.some((trace) => trace.trace_id === id));
+    syncTraceTaskFilter();
+    renderTraceList();
+    const targetId = state.traces.some((trace) => trace.trace_id === selectTraceId)
+      ? selectTraceId
+      : state.traces[0]?.trace_id;
+    if (targetId) {
+      await selectAgentTrace(targetId);
+    } else {
+      const hasFilters = Boolean(
+        state.traceFilters.query.trim() ||
+        state.traceFilters.task ||
+        state.traceFilters.execution ||
+        state.traceFilters.review ||
+        state.traceFilters.repair,
+      );
+      els.traceDetail.innerHTML = hasFilters
+        ? `<div class="trace-empty">当前过滤条件下没有匹配的 trace。</div>`
+        : `<div class="trace-empty">还没有 trace。运行一次 Agent 后这里会显示详情。</div>`;
+    }
+    await renderTraceCompare();
+  } catch (error) {
+    els.traceList.innerHTML = `<div class="trace-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderTraceList() {
+  if (!state.traces.length) {
+    const hasFilters = Boolean(
+      state.traceFilters.query.trim() ||
+      state.traceFilters.task ||
+      state.traceFilters.execution ||
+      state.traceFilters.review ||
+      state.traceFilters.repair,
+    );
+    els.traceList.innerHTML = hasFilters
+      ? `<div class="trace-empty">没有匹配当前过滤条件的 trace。</div>`
+      : `<div class="trace-empty">暂无 trace。</div>`;
+    return;
+  }
+  els.traceList.innerHTML = state.traces
+    .map((trace) => {
+      const active = trace.trace_id === state.selectedTraceId ? " active" : "";
+      const repair = trace.repair_changed ? "已修复" : "未修复";
+      const factuality = trace.factuality_status || "--";
+      const checked = state.compareTraceIds.includes(trace.trace_id) ? " checked" : "";
+      return `
+        <div class="trace-row${active}">
+          <button class="trace-main" data-trace-id="${escapeHtml(trace.trace_id)}" type="button">
+            <span class="trace-row-top">
+              <strong>${escapeHtml(trace.task_type || "--")}</strong>
+              <em>${escapeHtml(trace.execution_mode || "--")}</em>
+            </span>
+            <span>${escapeHtml(trace.message || "")}</span>
+            <span class="trace-row-meta">
+              ${escapeHtml(trace.created_at || "--")} · ${escapeHtml(repair)}
+            </span>
+            <span class="trace-row-meta">
+              factuality: ${escapeHtml(factuality)}
+            </span>
+          </button>
+          <label class="trace-compare-pick">
+            <input data-compare-trace-id="${escapeHtml(trace.trace_id)}" type="checkbox"${checked} />
+            <span>对比</span>
+          </label>
+        </div>
+      `;
+    })
+    .join("");
+  els.traceList.querySelectorAll("[data-trace-id]").forEach((button) => {
+    button.addEventListener("click", () => selectAgentTrace(button.dataset.traceId));
+  });
+  els.traceList.querySelectorAll("[data-compare-trace-id]").forEach((input) => {
+    input.addEventListener("click", (event) => event.stopPropagation());
+    input.addEventListener("change", () => toggleTraceCompare(input.dataset.compareTraceId, input.checked));
+  });
+}
+
+function syncTraceTaskFilter() {
+  if (!els.traceTaskFilter) return;
+  const tasks = [...new Set(state.traces.map((trace) => trace.task_type).filter(Boolean))].sort();
+  const current = state.traceFilters.task;
+  const options = current && !tasks.includes(current) ? [...tasks, current].sort() : tasks;
+  els.traceTaskFilter.innerHTML =
+    `<option value="">全部任务</option>` +
+    options.map((task) => `<option value="${escapeHtml(task)}">${escapeHtml(task)}</option>`).join("");
+  els.traceTaskFilter.value = current || "";
+}
+
+async function toggleTraceCompare(traceId, checked) {
+  if (!traceId) return;
+  if (checked) {
+    state.compareTraceIds = [...state.compareTraceIds.filter((id) => id !== traceId), traceId].slice(-2);
+  } else {
+    state.compareTraceIds = state.compareTraceIds.filter((id) => id !== traceId);
+  }
+  renderTraceList();
+  await renderTraceCompare();
+}
+
+async function renderTraceCompare() {
+  if (!els.traceCompare) return;
+  if (state.compareTraceIds.length < 2) {
+    els.traceCompare.hidden = true;
+    els.traceCompare.innerHTML = "";
+    return;
+  }
+  els.traceCompare.hidden = false;
+  els.traceCompare.innerHTML = `<div class="trace-empty">读取对比 trace...</div>`;
+  try {
+    const traces = await Promise.all(state.compareTraceIds.map(fetchTraceDetail));
+    els.traceCompare.innerHTML = buildTraceCompareHtml(traces[0], traces[1]);
+  } catch (error) {
+    els.traceCompare.innerHTML = `<div class="trace-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function fetchTraceDetail(traceId) {
+  const res = await fetch(`/api/agent/traces?id=${encodeURIComponent(traceId)}`);
+  const trace = await res.json();
+  if (!res.ok) throw new Error(trace.detail || trace.error || "Trace 详情读取失败");
+  return trace;
+}
+
+function buildTraceCompareHtml(left, right) {
+  const leftPlan = left.plan || {};
+  const rightPlan = right.plan || {};
+  const leftExecution = left.execution || {};
+  const rightExecution = right.execution || {};
+  const leftReview = left.review || {};
+  const rightReview = right.review || {};
+  const leftRepair = left.repair || {};
+  const rightRepair = right.repair || {};
+  const leftFactuality = leftReview.factuality || {};
+  const rightFactuality = rightReview.factuality || {};
+  const rows = [
+    ["trace_id", left.trace_id, right.trace_id],
+    ["message", left.request?.message, right.request?.message],
+    ["task_type", leftPlan.task_type, rightPlan.task_type],
+    ["intent", leftPlan.intent, rightPlan.intent],
+    ["tools", (leftPlan.required_tools || []).join(", "), (rightPlan.required_tools || []).join(", ")],
+    ["knowledge_queries", (leftPlan.knowledge_queries || []).join(" / "), (rightPlan.knowledge_queries || []).join(" / ")],
+    ["execution", leftExecution.mode, rightExecution.mode],
+    ["llm", [leftExecution.provider, leftExecution.model].filter(Boolean).join(" / "), [rightExecution.provider, rightExecution.model].filter(Boolean).join(" / ")],
+    ["review_passed", leftReview.passed, rightReview.passed],
+    ["factuality_status", leftFactuality.status, rightFactuality.status],
+    ["factuality_coverage", leftFactuality.coverage, rightFactuality.coverage],
+    ["factuality_summary", leftFactuality.summary, rightFactuality.summary],
+    ["review_issues", (leftReview.issues || []).join(" / "), (rightReview.issues || []).join(" / ")],
+    ["repair_changed", leftRepair.changed, rightRepair.changed],
+    ["repair_replacements", (leftRepair.replacements || []).map((item) => `${item.source}->${item.target}`).join(" / "), (rightRepair.replacements || []).map((item) => `${item.source}->${item.target}`).join(" / ")],
+    ["memory_patch", JSON.stringify(left.memory_patch || {}), JSON.stringify(right.memory_patch || {})],
+  ];
+  return `
+    <div class="trace-compare-head">
+      <h3>Trace 对比</h3>
+      <span>${escapeHtml(left.trace_id)} ⇄ ${escapeHtml(right.trace_id)}</span>
+    </div>
+    <div class="trace-compare-table">
+      ${rows
+        .map(([label, a, b]) => `
+          <div class="trace-compare-row${String(a) === String(b) ? "" : " changed"}">
+            <strong>${escapeHtml(label)}</strong>
+            <span>${escapeHtml(a ?? "--")}</span>
+            <span>${escapeHtml(b ?? "--")}</span>
+          </div>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
+async function selectAgentTrace(traceId) {
+  if (!traceId) return;
+  state.selectedTraceId = traceId;
+  renderTraceList();
+  els.traceDetail.innerHTML = `<div class="trace-empty">读取 trace 详情...</div>`;
+  try {
+    const res = await fetch(`/api/agent/traces?id=${encodeURIComponent(traceId)}`);
+    const trace = await res.json();
+    if (!res.ok) throw new Error(trace.detail || trace.error || "Trace 详情读取失败");
+    renderTraceDetail(trace);
+  } catch (error) {
+    els.traceDetail.innerHTML = `<div class="trace-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderTraceDetail(trace) {
+  const request = trace.request || {};
+  const plan = trace.plan || {};
+  const execution = trace.execution || {};
+  const review = trace.review || {};
+  const repair = trace.repair || {};
+  const finalResponse = trace.final_response || {};
+  const factuality = review.factuality || {};
+  els.traceDetail.innerHTML = `
+    <div class="trace-summary">
+      <div><span>Trace</span><strong>${escapeHtml(trace.trace_id)}</strong></div>
+      <div><span>任务</span><strong>${escapeHtml(plan.task_type || finalResponse.task_type || "--")}</strong></div>
+      <div><span>执行</span><strong>${escapeHtml(execution.mode || "--")}</strong></div>
+      <div><span>校验</span><strong>${review.passed ? "通过" : "未通过"}</strong></div>
+      <div><span>修复</span><strong>${repair.changed ? "已修复" : "未修复"}</strong></div>
+    </div>
+    <div class="trace-section">
+      <h3>Factuality</h3>
+      <div class="factuality-grid">
+        <div class="factuality-card">
+          <span>状态</span>
+          <strong>${escapeHtml(factuality.status || "--")}</strong>
+        </div>
+        <div class="factuality-card">
+          <span>覆盖率</span>
+          <strong>${escapeHtml(factuality.coverage || "--")}</strong>
+        </div>
+        <div class="factuality-card">
+          <span>已检查</span>
+          <strong>${escapeHtml(factuality.checked_claims ?? "--")}</strong>
+        </div>
+        <div class="factuality-card">
+          <span>已支持</span>
+          <strong>${escapeHtml(factuality.supported_claims ?? "--")}</strong>
+        </div>
+      </div>
+      <p class="trace-note">${escapeHtml(factuality.summary || "暂无 factuality 摘要。")}</p>
+      <pre>${prettyJson(factuality)}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>输入</h3>
+      <p>${escapeHtml(request.message || "")}</p>
+    </div>
+    <div class="trace-section">
+      <h3>计划</h3>
+      <pre>${prettyJson(plan)}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>Execution</h3>
+      <pre>${prettyJson(execution)}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>工具结果</h3>
+      <pre>${prettyJson(trace.tool_results || [])}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>Wiki 证据</h3>
+      <pre>${prettyJson(trace.wiki_hits || [])}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>Review</h3>
+      <pre>${prettyJson(review)}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>Repair</h3>
+      <pre>${prettyJson(repair)}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>Memory Patch</h3>
+      <pre>${prettyJson(trace.memory_patch || {})}</pre>
+    </div>
+    <div class="trace-section">
+      <h3>最终回复</h3>
+      <p>${escapeHtml(finalResponse.content || "")}</p>
+    </div>
+  `;
 }
 
 async function loadRadar() {
@@ -756,11 +1065,41 @@ els.agentChatForm.addEventListener("submit", (event) => {
 
 els.refreshBtn.addEventListener("click", refreshRadar);
 els.runAgentBtn.addEventListener("click", runAgentRecap);
+els.refreshTracesBtn.addEventListener("click", () => loadAgentTraces());
+els.traceSearch.addEventListener("input", (event) => {
+  state.traceFilters.query = event.target.value;
+  loadAgentTraces();
+});
+els.traceTaskFilter.addEventListener("change", (event) => {
+  state.traceFilters.task = event.target.value;
+  loadAgentTraces();
+});
+els.traceExecutionFilter.addEventListener("change", (event) => {
+  state.traceFilters.execution = event.target.value;
+  loadAgentTraces();
+});
+els.traceReviewFilter.addEventListener("change", (event) => {
+  state.traceFilters.review = event.target.value;
+  loadAgentTraces();
+});
+els.traceRepairFilter.addEventListener("change", (event) => {
+  state.traceFilters.repair = event.target.value;
+  loadAgentTraces();
+});
+els.clearTraceCompareBtn.addEventListener("click", async () => {
+  state.compareTraceIds = [];
+  renderTraceList();
+  await renderTraceCompare();
+});
 
 async function init() {
+  if (els.tracePanel) {
+    els.tracePanel.hidden = !state.debugTraces;
+  }
   await loadAgentStatus();
   await loadAgentMemory();
   await loadRadar();
+  if (state.debugTraces) await loadAgentTraces();
 }
 
 init();

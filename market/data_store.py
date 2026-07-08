@@ -56,7 +56,7 @@ def read_history(limit: int = 120) -> list[dict[str, Any]]:
                 continue
     elif latest_path().exists():
         payload = read_latest()
-        from tools.xueqiu_radar_collect import build_history_snapshot
+        from market_radar.market.collector import build_history_snapshot
 
         history.append(build_history_snapshot(payload))
     return history[-limit:]

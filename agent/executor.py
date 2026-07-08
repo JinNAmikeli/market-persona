@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from market_radar.agent import llm
+from market_radar.agent.prompts import SYSTEM_PROMPT, build_execution_prompt
 from market_radar.agent.reflector import DISCLAIMER
 
 
@@ -28,7 +30,8 @@ def generate(
     signals: dict[str, Any],
     watchlist_rows: list[dict[str, Any]],
     wiki_hits: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]], list[str], list[str], dict[str, Any]]:
+    tool_results: list[dict[str, Any]] | None = None,
+) -> tuple[str, list[dict[str, Any]], list[str], list[str], dict[str, Any], dict[str, Any]]:
     evidence = [
         {
             "type": "market_signal",
@@ -131,4 +134,76 @@ def generate(
         )
 
     memory_patch["last_next_watch"] = next_watch
-    return content, evidence, risk_flags, next_watch, memory_patch
+    content, execution = _maybe_generate_with_llm(
+        content=content,
+        message=message,
+        plan=plan,
+        memory=memory,
+        tool_results=tool_results or [],
+        wiki_hits=wiki_hits,
+    )
+    return content, evidence, risk_flags, next_watch, memory_patch, execution
+
+
+def _maybe_generate_with_llm(
+    *,
+    content: str,
+    message: str,
+    plan: Any,
+    memory: dict[str, Any],
+    tool_results: list[dict[str, Any]],
+    wiki_hits: list[dict[str, Any]],
+) -> tuple[str, dict[str, Any]]:
+    metadata: dict[str, Any] = {
+        "mode": "template",
+        "provider": None,
+        "model": None,
+        "fallback_reason": None,
+        "error": None,
+        "usage": {},
+    }
+    if plan.task_type == "refusal_or_redirect":
+        metadata["fallback_reason"] = "guarded_refusal_template"
+        return content, metadata
+
+    config = None
+    try:
+        config = llm.get_config()
+    except Exception as exc:
+        metadata["mode"] = "llm_fallback"
+        metadata["fallback_reason"] = "config_error"
+        metadata["error"] = str(exc)[:500]
+        return content, metadata
+    if config is None:
+        metadata["fallback_reason"] = "llm_not_configured"
+        return content, metadata
+
+    metadata["provider"] = config.provider
+    metadata["model"] = config.model
+    try:
+        prompt = build_execution_prompt(
+            message=message,
+            plan=plan,
+            memory=memory,
+            tool_results=tool_results,
+            wiki_hits=wiki_hits,
+        )
+        result = llm.complete_chat(SYSTEM_PROMPT, prompt, config=config)
+    except Exception as exc:
+        metadata["mode"] = "llm_fallback"
+        metadata["fallback_reason"] = "llm_error"
+        metadata["error"] = str(exc)[:500]
+        return content, metadata
+    if result is None or not result.content.strip():
+        metadata["mode"] = "llm_fallback"
+        metadata["fallback_reason"] = "empty_response"
+        return content, metadata
+
+    generated = result.content.strip()
+    if DISCLAIMER not in generated:
+        generated = f"{generated}\n\n{DISCLAIMER}"
+    metadata["mode"] = "llm"
+    metadata["provider"] = result.provider
+    metadata["model"] = result.model
+    metadata["usage"] = result.usage
+    return generated, metadata
