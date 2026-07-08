@@ -36,6 +36,14 @@ Thumbs.db
 # Private/reference docs
 docs/*.md
 docs/*.pdf
+!docs/PROJECT_SPEC.md
+!docs/ARCHITECTURE_FREEZE.md
+!docs/AUTHORITY_MATRIX.md
+!docs/CONTRACTS.md
+!docs/ISSUES.md
+!docs/HANDOFF.md
+!docs/AGENT_RULES.md
+!docs/RUNBOOK.md
 examples/*.md
 examples/*.pdf
 
