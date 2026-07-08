@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -8,6 +12,8 @@ from typing import Any
 from market_radar.market.data_store import append_history, write_latest
 
 
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+AGENT_REACH_ENV = "agent-reach"
 INDICES = {
     "SH000001": "上证指数",
     "SZ399001": "深证成指",
@@ -19,6 +25,15 @@ INDICES = {
 
 
 def collect() -> dict[str, Any]:
+    try:
+        return _collect_with_agent_reach()
+    except ModuleNotFoundError as exc:
+        if exc.name != "agent_reach":
+            raise
+        return _collect_via_agent_reach_env()
+
+
+def _collect_with_agent_reach() -> dict[str, Any]:
     from agent_reach.channels.xueqiu import XueqiuChannel
 
     channel = XueqiuChannel()
@@ -33,6 +48,73 @@ def collect() -> dict[str, Any]:
         "hot_watchlist": channel.get_hot_stocks(limit=20, stock_type=12),
         "hot_posts": channel.get_hot_posts(limit=20),
     }
+
+
+def _collect_via_agent_reach_env() -> dict[str, Any]:
+    conda_exe = _find_conda_executable()
+    if not conda_exe:
+        raise RuntimeError(
+            "Refresh requires the 'agent-reach' conda environment, but conda was not found. "
+            "Activate that environment before starting the server, or install conda on this machine."
+        )
+
+    script = (
+        "import json, sys; "
+        f"sys.path.insert(0, {json.dumps(str(WORKSPACE_ROOT))}); "
+        "from market_radar.market.collector import _collect_with_agent_reach; "
+        "print(json.dumps(_collect_with_agent_reach(), ensure_ascii=False))"
+    )
+    result = subprocess.run(
+        [
+            str(conda_exe),
+            "run",
+            "-n",
+            AGENT_REACH_ENV,
+            "python",
+            "-c",
+            script,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=os.environ.copy(),
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()[:1200]
+        raise RuntimeError(
+            "Refresh could not collect from the agent-reach environment. "
+            f"conda env={AGENT_REACH_ENV}; detail={detail or 'no error output'}"
+        )
+
+    stdout = (result.stdout or "").strip()
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("indices"):
+            return payload
+    raise RuntimeError("Refresh fallback ran, but no valid JSON payload was returned from agent-reach.")
+
+
+def _find_conda_executable() -> Path | None:
+    candidates = [
+        os.environ.get("CONDA_EXE"),
+        shutil.which("conda"),
+    ]
+    current_python = Path(sys.executable)
+    candidates.append(str(current_python.with_name("conda")))
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate)
+        if path.exists() and path.is_file():
+            return path
+    return None
 
 
 def build_history_snapshot(payload: dict[str, Any]) -> dict[str, Any]:

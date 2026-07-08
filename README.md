@@ -30,6 +30,14 @@ data/xueqiu_radar_history.jsonl
 python scripts/refresh_xueqiu.py
 ```
 
+如果你不是在 `agent-reach` 环境里启动服务，刷新时会自动尝试执行：
+
+```bash
+conda run -n agent-reach python ...
+```
+
+如果这一步也失败，通常说明本机没有这个 conda 环境，或者 `conda` 不在当前 shell 可用路径里。
+
 ## 注意
 
 看板只做市场观察、主线识别和风险提示，不提供买卖建议。
