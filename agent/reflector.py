@@ -11,7 +11,9 @@ from market_radar.agent.schemas import ReflectionResult
 
 BLOCKED_TERMS = ["可以买", "必须买", "必须卖", "满仓", "梭哈", "稳赚", "一定涨", "确定上涨", "目标价", "翻倍", "无风险"]
 DISCLAIMER = "以上仅作市场观察和投资知识解释，不构成买卖建议。"
+CORE_FACTUALITY_TASKS = {"market_overview", "theme_explanation", "briefing_script"}
 EVIDENCE_MARKERS = ["情绪分", "拥挤度", "上涨", "均值", "重合", "涨停", "热榜", "热门帖", "主线", "方向", "主题", "排名"]
+JUDGMENT_MARKERS = ["市场偏", "状态偏", "集中", "高热", "扩散", "分化", "趋势", "继续"]
 DISCLAIMER_MARKERS = ["不构成买卖建议", "修复说明：", "证据不足", "待验证", "继续观察"]
 GUIDANCE_MARKERS = ["重点看", "下一步", "继续跟踪", "如果你关注", "可以理解为", "先按", "说明后续更要观察"]
 
@@ -45,6 +47,7 @@ def review(
 
     factuality = _rule_factuality_review(
         content,
+        plan=plan,
         evidence=evidence or [],
         tool_results=tool_results or [],
         wiki_hits=wiki_hits or [],
@@ -249,6 +252,7 @@ def _needs_structured_footer(content: str) -> bool:
 def _rule_factuality_review(
     content: str,
     *,
+    plan: Any | None,
     evidence: list[dict[str, Any]],
     tool_results: list[dict[str, Any]],
     wiki_hits: list[dict[str, Any]],
@@ -259,6 +263,7 @@ def _rule_factuality_review(
     supported_claims = 0
     unsupported_claims: list[str] = []
     conflicting_claims: list[str] = []
+    claim_bindings: list[dict[str, Any]] = []
 
     for sentence in _split_sentences(content):
         if _skip_factuality_sentence(sentence):
@@ -267,12 +272,25 @@ def _rule_factuality_review(
         if analysis is None:
             continue
         checked_claims += 1
+        claim_bindings.append(
+            {
+                "claim": sentence,
+                "claim_type": analysis.get("claim_type", "market_or_theme_judgment"),
+                "status": analysis["status"],
+                "evidence_refs": analysis.get("evidence_refs", []),
+                "reason": analysis.get("reason", ""),
+            }
+        )
         if analysis["status"] == "supported":
             supported_claims += 1
         elif analysis["status"] == "insufficient_evidence":
             unsupported_claims.append(sentence)
         elif analysis["status"] == "evidence_conflict":
             conflicting_claims.append(sentence)
+
+    task_type = getattr(plan, "task_type", None)
+    if task_type in CORE_FACTUALITY_TASKS and checked_claims == 0:
+        unsupported_claims.append(f"{task_type}: 缺少可绑定的核心市场判断")
 
     if conflicting_claims:
         status = "evidence_conflict"
@@ -284,14 +302,12 @@ def _rule_factuality_review(
         status = "supported"
         summary = "回复中的关键事实已被当前证据覆盖。"
 
-    if checked_claims == 0:
-        coverage = "unknown"
-    elif checked_claims == supported_claims:
-        coverage = "high"
+    if checked_claims > 0 and checked_claims == supported_claims and not conflicting_claims:
+        coverage = "supported"
     elif supported_claims > 0:
-        coverage = "medium"
+        coverage = "partial"
     else:
-        coverage = "low"
+        coverage = "insufficient"
 
     return {
         "status": status,
@@ -302,6 +318,9 @@ def _rule_factuality_review(
         "conflicting_claims": conflicting_claims,
         "evidence_count": evidence_count,
         "coverage": coverage,
+        "coverage_summary": f"{supported_claims}/{checked_claims} 个重要判断已绑定证据。",
+        "claim_bindings": claim_bindings,
+        "required_evidence_types": ["market_signal", "history", "wiki_section"],
     }
 
 
@@ -312,7 +331,9 @@ def _canonical_facts(
 ) -> dict[str, Any]:
     market_signals = _tool_data(tool_results, "get_market_signals") or {}
     theme_signals = _tool_data(tool_results, "get_theme_signals") or {}
+    history_tail = _tool_data(tool_results, "get_history_tail") or []
     tool_payloads = [item.get("data") for item in tool_results if item.get("ok")]
+    evidence_sources = _evidence_sources(evidence, tool_results, wiki_hits)
     text_corpus = "\n".join(
         [
             *[str(item.get("title") or "") for item in evidence],
@@ -335,38 +356,197 @@ def _canonical_facts(
         known_terms.update(_extract_terms(item))
     return {
         "market_signals": market_signals,
+        "theme_signals": theme_signals,
+        "history_tail": history_tail,
         "known_numbers": {item for item in known_numbers if item},
         "known_terms": {item for item in known_terms if item},
+        "evidence_sources": evidence_sources,
+        "source_text": "\n".join(item["text"] for item in evidence_sources),
     }
 
 
-def _analyze_sentence(sentence: str, facts: dict[str, Any]) -> dict[str, str] | None:
+def _analyze_sentence(sentence: str, facts: dict[str, Any]) -> dict[str, Any] | None:
     market = facts.get("market_signals") or {}
+    theme = facts.get("theme_signals") or {}
     if "情绪分" in sentence:
         expected = market.get("sentiment_score")
         if expected is not None:
-            return {"status": "supported" if str(int(expected)) in sentence else "evidence_conflict"}
+            return _market_result(facts, "sentiment_score", expected, str(int(expected)) in sentence)
     if "拥挤度" in sentence:
         expected = market.get("crowding")
         if expected:
-            return {"status": "supported" if str(expected) in sentence else "evidence_conflict"}
+            return _market_result(facts, "crowding", expected, str(expected) in sentence)
     if "个上涨" in sentence:
         expected = market.get("positive_count")
         if expected is not None:
-            return {"status": "supported" if str(expected) in sentence else "evidence_conflict"}
+            return _market_result(facts, "positive_count", expected, str(expected) in sentence)
+    if "成长侧均值" in sentence:
+        expected = market.get("growth_avg")
+        if expected is not None:
+            return _market_result(facts, "growth_avg", expected, _number_matches(sentence, expected))
+    if "宽基侧均值" in sentence:
+        expected = market.get("broad_avg")
+        if expected is not None:
+            return _market_result(facts, "broad_avg", expected, _number_matches(sentence, expected))
+    if "重合" in sentence:
+        expected = market.get("duplicate_count")
+        if expected is not None:
+            return _market_result(facts, "duplicate_count", expected, str(expected) in sentence)
+    if "涨停" in sentence:
+        expected = market.get("limit_like_count")
+        if expected is not None:
+            return _market_result(facts, "limit_like_count", expected, str(expected) in sentence)
+    if "市场偏" in sentence or "状态偏" in sentence:
+        expected = market.get("tone")
+        if expected:
+            return _market_result(facts, "tone", expected, str(expected) in sentence)
+    if any(marker in sentence for marker in ["主线", "方向", "主题", "讨论集中", "最集中"]):
+        theme_names = [str(item.get("name") or "") for item in market.get("themes", [])]
+        if theme_names:
+            supported = any(name and name in sentence for name in theme_names)
+            return _claim_result(
+                "theme_signal",
+                "supported" if supported else "insufficient_evidence",
+                _source_refs(facts, {"theme_signal", "market_signal"}),
+                "主题判断需要绑定当前主题信号。",
+            )
+        if "暂无明确主线" in sentence:
+            return _claim_result("theme_signal", "supported", _source_refs(facts, {"market_signal"}), "当前主题列表为空。")
+    if any(marker in sentence for marker in ["热榜", "热门帖"]):
+        refs = _source_refs(facts, {"theme_signal", "market_signal"})
+        if theme or refs:
+            return _claim_result("theme_signal", "supported", refs, "热榜或热门帖判断绑定主题信号。")
 
     numbers = re.findall(r"\d+(?:\.\d+)?", sentence)
     known_numbers = facts.get("known_numbers") or set()
     if numbers:
-        return {"status": "supported" if any(number in known_numbers for number in numbers) else "insufficient_evidence"}
+        supported = any(number in known_numbers for number in numbers)
+        return _claim_result(
+            "numeric_fact",
+            "supported" if supported else "insufficient_evidence",
+            _matching_source_refs(facts, numbers),
+            "数字判断需要出现在工具结果或证据摘要中。",
+        )
 
     known_terms = facts.get("known_terms") or set()
     if any(term and term in sentence for term in known_terms):
-        return {"status": "supported"}
+        return _claim_result("known_term", "supported", _source_refs(facts, {"market_signal", "theme_signal", "wiki_section"}), "关键术语已在证据中出现。")
 
+    if any(marker in sentence for marker in ["风险", "分化", "扩散", "高热", "追热点"]):
+        refs = _source_refs(facts, {"wiki_section", "history"})
+        return _claim_result(
+            "risk_or_history_judgment",
+            "supported" if refs else "insufficient_evidence",
+            refs,
+            "风险或历史延续判断需要 Wiki 或历史证据支撑。",
+        )
     if any(marker in sentence for marker in EVIDENCE_MARKERS):
-        return {"status": "insufficient_evidence"}
+        return _claim_result("market_or_theme_judgment", "insufficient_evidence", [], "重要市场判断未找到可绑定证据。")
+    if any(marker in sentence for marker in JUDGMENT_MARKERS):
+        return _claim_result("important_judgment", "insufficient_evidence", [], "强判断需要市场、历史或 Wiki 证据。")
     return None
+
+
+def _market_result(facts: dict[str, Any], field: str, expected: Any, supported: bool) -> dict[str, Any]:
+    return _claim_result(
+        f"market_signal.{field}",
+        "supported" if supported else "evidence_conflict",
+        _source_refs(facts, {"market_signal"}),
+        f"期望 {field}={expected}，回复句子{'匹配' if supported else '不匹配'}当前市场信号。",
+    )
+
+
+def _claim_result(claim_type: str, status: str, evidence_refs: list[str], reason: str) -> dict[str, Any]:
+    return {
+        "status": status,
+        "claim_type": claim_type,
+        "evidence_refs": list(dict.fromkeys([item for item in evidence_refs if item])),
+        "reason": reason,
+    }
+
+
+def _number_matches(sentence: str, expected: Any) -> bool:
+    try:
+        number = float(expected)
+    except (TypeError, ValueError):
+        return False
+    candidates = {f"{number:.2f}", f"{number:+.2f}", str(round(number, 2))}
+    return any(candidate in sentence for candidate in candidates)
+
+
+def _source_refs(facts: dict[str, Any], source_types: set[str]) -> list[str]:
+    refs = []
+    for source in facts.get("evidence_sources") or []:
+        if source.get("type") in source_types:
+            refs.append(source["id"])
+    return refs
+
+
+def _matching_source_refs(facts: dict[str, Any], numbers: list[str]) -> list[str]:
+    refs = []
+    for source in facts.get("evidence_sources") or []:
+        text = source.get("text") or ""
+        if any(number in text for number in numbers):
+            refs.append(source["id"])
+    return refs
+
+
+def _evidence_sources(
+    evidence: list[dict[str, Any]],
+    tool_results: list[dict[str, Any]],
+    wiki_hits: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    sources = []
+    for item in evidence:
+        source_type = str(item.get("type") or "evidence")
+        source_id = str(item.get("id") or f"evidence:{source_type}")
+        sources.append(
+            {
+                "id": source_id,
+                "type": _normalize_evidence_type(source_type),
+                "text": json.dumps(item, ensure_ascii=False),
+            }
+        )
+    for result in tool_results:
+        if not result.get("ok"):
+            continue
+        name = str(result.get("name") or "tool")
+        sources.append(
+            {
+                "id": f"tool:{name}",
+                "type": _normalize_tool_type(name),
+                "text": json.dumps(result.get("data"), ensure_ascii=False),
+            }
+        )
+    for hit in wiki_hits:
+        topic_id = hit.get("topic_id") or "wiki"
+        section_id = hit.get("section_id") or hit.get("section_title") or "section"
+        sources.append(
+            {
+                "id": f"wiki:{topic_id}:{section_id}",
+                "type": "wiki_section",
+                "text": json.dumps(hit, ensure_ascii=False),
+            }
+        )
+    return sources
+
+
+def _normalize_tool_type(name: str) -> str:
+    return {
+        "get_market_signals": "market_signal",
+        "get_market_snapshot": "market_signal",
+        "get_theme_signals": "theme_signal",
+        "get_history_tail": "history",
+    }.get(name, "tool_result")
+
+
+def _normalize_evidence_type(source_type: str) -> str:
+    return {
+        "market_signal": "market_signal",
+        "theme_signal": "theme_signal",
+        "history": "history",
+        "wiki_section": "wiki_section",
+    }.get(source_type, source_type)
 
 
 def _skip_factuality_sentence(sentence: str) -> bool:

@@ -225,10 +225,19 @@ def main() -> int:
     failures += not check(
         "factuality structure",
         factuality.get("status") == "supported"
-        and "coverage" in factuality
+        and factuality.get("coverage") == "supported"
         and isinstance(factuality.get("unsupported_claims"), list)
         and isinstance(factuality.get("conflicting_claims"), list),
         f"factuality={factuality}",
+    )
+    claim_bindings = factuality.get("claim_bindings") or []
+    failures += not check(
+        "factuality evidence bindings",
+        len(claim_bindings) > 0
+        and all(item.get("evidence_refs") for item in claim_bindings if item.get("status") == "supported")
+        and isinstance(factuality.get("coverage_summary"), str)
+        and "market_signal" in (factuality.get("required_evidence_types") or []),
+        f"bindings={claim_bindings}",
     )
     bad_review = review("这只股票可以买，目标价很明确。")
     repair_result = repair("这只股票可以买，目标价很明确。", bad_review, plan=sample_plan, evidence=[])
@@ -243,8 +252,11 @@ def main() -> int:
     )
     insufficient = review("这段结论会继续扩散并带来更强趋势。", evidence=[], tool_results=[], wiki_hits=[])
     failures += not check(
-        "factuality insufficient",
-        insufficient.passed is False and (insufficient.factuality or {}).get("status") == "insufficient_evidence",
+        "factuality insufficient without evidence",
+        insufficient.passed is False
+        and (insufficient.factuality or {}).get("status") == "insufficient_evidence"
+        and (insufficient.factuality or {}).get("coverage") == "insufficient"
+        and len((insufficient.factuality or {}).get("unsupported_claims") or []) > 0,
         f"review={insufficient}",
     )
     conflicting = review(
@@ -255,10 +267,23 @@ def main() -> int:
     )
     failures += not check(
         "factuality conflict",
-        conflicting.passed is False and (conflicting.factuality or {}).get("status") == "evidence_conflict",
+        conflicting.passed is False
+        and (conflicting.factuality or {}).get("status") == "evidence_conflict"
+        and (conflicting.factuality or {}).get("coverage") in ("partial", "insufficient"),
         f"review={conflicting}",
     )
     failures += not check_schema("schema chat response", overview, "api/agent_chat_response.schema.json")
+
+    theme_response = run_agent_turn({"user_id": "verify_script", "message": "AI硬件为什么热？"})
+    theme_factuality = theme_response["review"].get("factuality") or {}
+    failures += not check(
+        "theme explanation factuality bindings",
+        theme_response["task_type"] == "theme_explanation"
+        and theme_response["review"]["passed"]
+        and theme_factuality.get("coverage") == "supported"
+        and any((item.get("claim_type") or "").startswith("theme_signal") for item in theme_factuality.get("claim_bindings") or []),
+        f"factuality={theme_factuality}",
+    )
 
     refusal = run_agent_turn({"user_id": "verify_script", "message": "AI硬件现在能买吗？"})
     failures += not check(
@@ -309,6 +334,14 @@ def main() -> int:
         "briefing",
         briefing["review"]["passed"] and briefing["title"] == "收盘市场复盘",
         f"title={briefing.get('title')}",
+    )
+    briefing_factuality = briefing["review"].get("factuality") or {}
+    failures += not check(
+        "briefing factuality bindings",
+        briefing_factuality.get("status") == "supported"
+        and briefing_factuality.get("coverage") == "supported"
+        and len(briefing_factuality.get("claim_bindings") or []) > 0,
+        f"factuality={briefing_factuality}",
     )
     failures += not check_schema("schema briefing response", briefing, "api/agent_briefing_response.schema.json")
 

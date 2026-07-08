@@ -34,9 +34,21 @@ def generate(
 ) -> tuple[str, list[dict[str, Any]], list[str], list[str], dict[str, Any], dict[str, Any]]:
     evidence = [
         {
+            "id": "evidence:market_signal",
             "type": "market_signal",
+            "source": "derive_market",
             "title": "市场信号",
             "summary": f"{len(radar.get('indices') or [])} 个指数中 {signals['positive_count']} 个上涨，情绪分 {signals['sentiment_score']}/100。",
+            "fields": {
+                "tone": signals.get("tone"),
+                "positive_count": signals.get("positive_count"),
+                "sentiment_score": signals.get("sentiment_score"),
+                "crowding": signals.get("crowding"),
+                "growth_avg": signals.get("growth_avg"),
+                "broad_avg": signals.get("broad_avg"),
+                "duplicate_count": signals.get("duplicate_count"),
+                "limit_like_count": signals.get("limit_like_count"),
+            },
         }
     ]
     risk_flags = []
@@ -50,13 +62,32 @@ def generate(
     if signals.get("crowding") in ("中", "高"):
         risk_flags.append("theme_crowding")
     if history:
-        evidence.append({"type": "history", "title": "历史快照", "summary": f"已读取最近 {len(history)} 条历史快照。"})
+        evidence.append(
+            {
+                "id": "evidence:history",
+                "type": "history",
+                "source": "data_store.read_history",
+                "title": "历史快照",
+                "summary": f"已读取最近 {len(history)} 条历史快照。",
+                "fields": {
+                    "count": len(history),
+                    "latest_generated_at": (history[-1] or {}).get("generated_at"),
+                },
+            }
+        )
     for hit in wiki_hits[:2]:
         evidence.append(
             {
+                "id": f"wiki:{hit.get('topic_id') or 'wiki'}:{hit.get('section_id') or 'section'}",
                 "type": "wiki_section",
+                "source": "wiki.search",
                 "title": f"{hit.get('title')} / {hit.get('section_title')}",
                 "summary": hit.get("content", "")[:90],
+                "fields": {
+                    "topic_id": hit.get("topic_id"),
+                    "section_id": hit.get("section_id"),
+                    "score": hit.get("score"),
+                },
             }
         )
 
@@ -93,9 +124,16 @@ def generate(
         theme = signals.get("themes", [{}])[0]
         evidence.append(
             {
+                "id": "evidence:theme_signal",
                 "type": "theme_signal",
+                "source": "derive_market.themes",
                 "title": theme.get("name", "主题信号"),
                 "summary": f"信号数 {theme.get('score', 0)}，相关股票：{'、'.join(theme.get('stocks', [])[:6]) or '暂无'}。",
+                "fields": {
+                    "name": theme.get("name"),
+                    "score": theme.get("score", 0),
+                    "stocks": theme.get("stocks", [])[:6],
+                },
             }
         )
         content = (

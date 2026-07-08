@@ -251,6 +251,42 @@
             },
             "coverage": {
               "type": "string"
+            },
+            "coverage_summary": {
+              "type": "string"
+            },
+            "required_evidence_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "claim_bindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["claim", "claim_type", "status", "evidence_refs", "reason"],
+                "properties": {
+                  "claim": {
+                    "type": "string"
+                  },
+                  "claim_type": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "evidence_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
         },

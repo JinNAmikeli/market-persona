@@ -63,7 +63,7 @@
 
 ## ISSUE-003 Factuality Evidence Binding
 
-状态：待办
+状态：完成
 建议优先级：高
 
 目标：
@@ -76,6 +76,19 @@
 - 不改变合规边界。
 - 不引入外部数据库。
 - 不输出买卖建议。
+
+已完成：
+
+- `review.factuality` 新增 `claim_bindings`、`coverage_summary`、`required_evidence_types`，用于说明重要判断绑定到哪些 market signal / history / wiki evidence。
+- `review.factuality.coverage` 改为 `supported`、`partial`、`insufficient` 三档。
+- `market_overview`、`theme_explanation`、`briefing_script` 的核心市场判断会检查当前市场状态、上涨数量、情绪分、拥挤度、主题集中度等是否由工具结果或 evidence 支撑。
+- 无证据强判断进入 `insufficient_evidence`；与工具结果冲突的情绪分、拥挤度等进入 `evidence_conflict`。
+- `executor` 在不改变 UI 和路由的前提下，为 evidence 补充稳定 `id`、`source` 和 `fields`。
+- `scripts/verify_runtime.py` 已增加有证据市场概览、主题解释、briefing 绑定、无证据强判断、工具结果冲突的回归覆盖。
+
+验收：
+
+- `python scripts/verify_runtime.py` 已通过。
 
 ## ISSUE-004 Wiki Governance
 

@@ -69,7 +69,75 @@
             "conflicting_claims",
             "evidence_count",
             "coverage"
-          ]
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "checked_claims": {
+              "type": "integer"
+            },
+            "supported_claims": {
+              "type": "integer"
+            },
+            "unsupported_claims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflicting_claims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_count": {
+              "type": "integer"
+            },
+            "coverage": {
+              "type": "string"
+            },
+            "coverage_summary": {
+              "type": "string"
+            },
+            "required_evidence_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "claim_bindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["claim", "claim_type", "status", "evidence_refs", "reason"],
+                "properties": {
+                  "claim": {
+                    "type": "string"
+                  },
+                  "claim_type": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "evidence_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
         },
         "compliance": {
           "type": "string"
