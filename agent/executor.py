@@ -31,7 +31,7 @@ def generate(
     watchlist_rows: list[dict[str, Any]],
     wiki_hits: list[dict[str, Any]],
     tool_results: list[dict[str, Any]] | None = None,
-) -> tuple[str, list[dict[str, Any]], list[str], list[str], dict[str, Any], dict[str, Any]]:
+) -> tuple[str, list[dict[str, Any]], list[str], list[str], dict[str, Any]]:
     evidence = [
         {
             "id": "evidence:market_signal",
@@ -56,8 +56,6 @@ def generate(
         "观察主线是否从少数热门股扩散到更多同主题标的。",
         "观察创业板指、科创50与宽基指数的相对强弱。",
     ]
-    memory_patch: dict[str, Any] = {"question": message}
-
     top_themes = _top_themes(signals)
     if signals.get("crowding") in ("中", "高"):
         risk_flags.append("theme_crowding")
@@ -99,7 +97,6 @@ def generate(
             "它是否进入热榜、所属主题是否继续扩散、以及高热度是否带来拥挤风险。\n\n"
             f"{DISCLAIMER}"
         )
-        memory_patch["needs_stronger_risk_warning"] = True
     elif plan.task_type == "watchlist_review":
         if not watchlist_rows:
             content = (
@@ -143,8 +140,6 @@ def generate(
             "这说明它更像是一个需要继续跟踪的高热方向，而不是可以直接推出买卖结论的信号。"
             f"下一步重点看：{next_watch[0]}\n\n{DISCLAIMER}"
         )
-        if theme.get("name"):
-            memory_patch["focus_themes"] = [theme["name"]]
     elif plan.task_type == "briefing_script":
         content = (
             f"今天市场偏「{signals['tone']}」。核心指数中 {signals['positive_count']} 个上涨，"
@@ -171,7 +166,6 @@ def generate(
             f"下一步观察：{next_watch[0]} {next_watch[1]}\n\n{DISCLAIMER}"
         )
 
-    memory_patch["last_next_watch"] = next_watch
     content, execution = _maybe_generate_with_llm(
         content=content,
         message=message,
@@ -180,7 +174,7 @@ def generate(
         tool_results=tool_results or [],
         wiki_hits=wiki_hits,
     )
-    return content, evidence, risk_flags, next_watch, memory_patch, execution
+    return content, evidence, risk_flags, next_watch, execution
 
 
 def _maybe_generate_with_llm(

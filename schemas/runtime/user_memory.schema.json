@@ -38,7 +38,13 @@
     },
     "risk_preferences": {
       "type": "object",
-      "required": ["needs_stronger_risk_warning"]
+      "required": ["needs_stronger_risk_warning"],
+      "properties": {
+        "needs_stronger_risk_warning": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
     },
     "journey_state": {
       "type": "object",

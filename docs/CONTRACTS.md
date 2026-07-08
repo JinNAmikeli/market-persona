@@ -81,6 +81,29 @@ Memory 当前使用 `data/user_memory.json`。
 
 后续新增字段必须兼容旧数据。不得在无用户批准时把 memory 上传到外部服务。
 
+Agent Runtime 的 memory 写回必须通过规则型 memory patch builder，例如：
+
+```text
+build_memory_patch(request, plan, draft, review, evidence)
+```
+
+memory patch 是审计记录，不是自由文本抽取结果。每个新结构 patch 至少包含：
+
+- `source`：只能表示主要来源，例如 `user_message`、`agent_response`、`review`。
+- `reason`：说明本轮为什么可以写入或为什么只记录低风险运行状态。
+- `confidence`：`low`、`medium`、`high`。
+- `operations`：逐条记录 `op`、`path`、`value`、`source`、`reason`、`confidence`。
+
+写入规则：
+
+- `focus_themes` 只能在用户明确表达“关注、跟踪、观察、添加关注”等主题意图时写入；普通市场问题或主题解释问题不得自动写入。
+- `watchlist` 只能在用户明确表达“关注、添加、加入自选、我的股票/自选”等自选股意图时写入；普通提到热门股或询问个股表现不得自动加入自选。
+- `knowledge_level` 只能根据“我是小白/新手/刚入门/我有基础”等低风险自我描述更新，并必须在 operation 中保留 reason。
+- `risk_preferences` 只能做保守更新，例如用户明确要求更多风险提示，或本轮触发买卖、目标价、确定收益等拒绝/转写任务；不得降低风险提示强度。
+- `last_questions`、`last_next_watch` 可以作为低风险运行状态写入，但也必须通过 operations 保留审计字段。
+
+`apply_patch` 必须兼容旧式扁平 patch，同时支持新结构的 `operations`。旧式 patch 仍可包含 `watchlist`、`focus_themes`、`knowledge_level`、`last_next_watch`、`question` 等既有字段。
+
 `POST /api/agent/memory` 是受控同步入口，只接受以下白名单字段：
 
 - `watchlist`

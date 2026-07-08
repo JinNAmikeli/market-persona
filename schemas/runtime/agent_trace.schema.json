@@ -368,7 +368,58 @@
       }
     },
     "memory_patch": {
-      "type": "object"
+      "type": "object",
+      "required": ["source", "reason", "confidence", "operations"],
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["user_message", "agent_response", "review"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["op", "path", "value", "source", "reason", "confidence"],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["set", "append_unique", "prepend_unique"]
+              },
+              "path": {
+                "type": "string"
+              },
+              "value": {},
+              "source": {
+                "type": "string",
+                "enum": ["user_message", "agent_response", "review"]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+              }
+            }
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "updated_memory": {
       "type": "object"

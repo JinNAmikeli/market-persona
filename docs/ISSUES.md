@@ -123,7 +123,7 @@
 
 ## ISSUE-005 Memory Patch Builder
 
-状态：待办
+状态：完成
 建议优先级：中
 
 目标：
@@ -135,6 +135,31 @@
 
 - 不上传用户 memory。
 - 不引入多用户权限系统。
+
+已完成：
+
+- 在 `agent/memory.py` 新增规则型 `build_memory_patch(request, plan, draft, review, evidence)`，统一生成结构化 memory patch。
+- 新结构 patch 包含 `source`、`reason`、`confidence`、`operations` 和 `evidence_refs`；每条 operation 包含 `op`、`path`、`value`、`source`、`reason`、`confidence`。
+- 将 `executor` 中旧的 focus_themes / risk flag 直接写入逻辑迁移到 runtime review 后的 memory builder，避免普通主题解释自动写 memory。
+- `focus_themes` 只在用户明确表达关注、跟踪、观察等主题意图时写入；“今天市场怎么样”“AI硬件为什么热”不自动写关注主题。
+- `watchlist` 只在用户明确表达关注、添加、加入自选等意图时写入；普通“中际旭创今天怎么样”不自动加入自选。
+- `knowledge_level`、`risk_preferences` 只做规则型保守更新，并在 operation 中保留 reason。
+- `apply_patch` 支持新结构 `operations`，同时保留旧式扁平 patch 兼容。
+- `schemas/runtime/agent_trace.schema.json` 增加 memory_patch 审计字段约束；`schemas/runtime/user_memory.schema.json` 补充 `risk_preferences.needs_stronger_risk_warning` 类型。
+- `scripts/verify_runtime.py` 增加普通市场问题、明确关注主题、明确加入自选、普通个股提及、trace 审计字段和旧 patch 兼容回归。
+- `docs/CONTRACTS.md` 更新 Memory 契约。
+
+验收：
+
+- `python -m py_compile agent/memory.py agent/runtime.py agent/executor.py scripts/verify_runtime.py` 已通过。
+- `python -m json.tool schemas/runtime/user_memory.schema.json` 已通过。
+- `python -m json.tool schemas/runtime/agent_trace.schema.json` 已通过。
+- `python scripts/verify_runtime.py` 已通过。
+
+注意：
+
+- 本轮未使用 LLM 抽取 memory，未新增外部依赖，未修改 UI、`server.py`、`market/collector.py` 或金融合规边界。
+- 验证脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`；这些运行期文件不应提交。
 
 ## ISSUE-006 Trace Debugging Improvements
 

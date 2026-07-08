@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from market_radar.agent import executor, planner, reflector
-from market_radar.agent.memory import apply_patch, load_memory, memory_snapshot
+from market_radar.agent.memory import apply_patch, build_memory_patch, load_memory, memory_snapshot
 from market_radar.agent.schemas import AgentRequest, AgentResponse
 from market_radar.agent.tools import run_tools, tool_data
 from market_radar.agent.trace import append_trace, make_trace_id
@@ -40,7 +40,7 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
     watch_rows = tool_data(tool_results, "get_watchlist_status", [])
     wiki_hits = search_wiki(plan.knowledge_queries, top_k=5)
 
-    content, evidence, risk_flags, next_watch, memory_patch, execution = executor.generate(
+    content, evidence, risk_flags, next_watch, execution = executor.generate(
         request.message,
         plan,
         memory,
@@ -87,6 +87,13 @@ def run_agent_turn(payload: dict[str, Any]) -> dict[str, Any]:
         )
         review = reflector.preserve_repaired_factuality(review, repair_result)
 
+    memory_patch = build_memory_patch(
+        request=request,
+        plan=plan,
+        draft=draft,
+        review=review,
+        evidence=evidence,
+    )
     updated_memory = apply_patch(request.user_id, memory_patch)
     response = AgentResponse(
         trace_id=trace_id,

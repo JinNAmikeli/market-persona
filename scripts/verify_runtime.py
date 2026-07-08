@@ -11,7 +11,7 @@ PROJECT_ROOT = REPO_ROOT.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from market_radar.agent.memory import default_memory, load_all, load_memory, save_all, set_memory_fields
+from market_radar.agent.memory import apply_patch, default_memory, load_all, load_memory, save_all, set_memory_fields
 from market_radar.agent.llm import get_config, normalize_provider
 from market_radar.agent.planner import plan
 from market_radar.agent.prompts import build_execution_prompt, build_reflection_prompt
@@ -122,6 +122,19 @@ def load_wiki_pages() -> list[dict[str, Any]]:
     for rel_path in index.get("pages") or []:
         pages.append(json.loads((REPO_ROOT / "wiki" / rel_path).read_text(encoding="utf-8")))
     return pages
+
+
+def reset_memory(user_id: str) -> None:
+    payload = load_all()
+    payload[user_id] = default_memory(user_id)
+    save_all(payload)
+
+
+def trace_memory_operations(trace_id: str) -> list[dict[str, Any]]:
+    trace = find_trace(trace_id) or {}
+    patch = trace.get("memory_patch") or {}
+    operations = patch.get("operations") or []
+    return operations if isinstance(operations, list) else []
 
 
 def main() -> int:
@@ -347,6 +360,51 @@ def main() -> int:
     )
     failures += not check_schema("schema chat response", overview, "api/agent_chat_response.schema.json")
 
+    reset_memory("verify_memory_plain")
+    plain_memory_response = run_agent_turn({"user_id": "verify_memory_plain", "message": "今天市场怎么样？"})
+    plain_memory = load_memory("verify_memory_plain")
+    plain_memory_ops = trace_memory_operations(plain_memory_response["trace_id"])
+    failures += not check(
+        "memory patch plain market no preference write",
+        plain_memory.get("watchlist") == []
+        and plain_memory.get("focus_themes") == []
+        and all(item.get("path") not in ("watchlist", "focus_themes") for item in plain_memory_ops),
+        f"memory={plain_memory} ops={plain_memory_ops}",
+    )
+
+    reset_memory("verify_memory_focus")
+    focus_memory_response = run_agent_turn({"user_id": "verify_memory_focus", "message": "我关注 AI硬件"})
+    focus_memory = load_memory("verify_memory_focus")
+    focus_memory_ops = trace_memory_operations(focus_memory_response["trace_id"])
+    failures += not check(
+        "memory patch explicit focus theme",
+        "AI硬件" in focus_memory.get("focus_themes", [])
+        and any(item.get("path") == "focus_themes" and item.get("value") == "AI硬件" for item in focus_memory_ops),
+        f"memory={focus_memory} ops={focus_memory_ops}",
+    )
+
+    reset_memory("verify_memory_watchlist")
+    watchlist_memory_response = run_agent_turn({"user_id": "verify_memory_watchlist", "message": "把中际旭创加入自选"})
+    watchlist_memory = load_memory("verify_memory_watchlist")
+    watchlist_memory_ops = trace_memory_operations(watchlist_memory_response["trace_id"])
+    failures += not check(
+        "memory patch explicit watchlist add",
+        "中际旭创" in watchlist_memory.get("watchlist", [])
+        and any(item.get("path") == "watchlist" and item.get("value") == "中际旭创" for item in watchlist_memory_ops),
+        f"memory={watchlist_memory} ops={watchlist_memory_ops}",
+    )
+
+    reset_memory("verify_memory_stock_plain")
+    stock_plain_response = run_agent_turn({"user_id": "verify_memory_stock_plain", "message": "中际旭创今天怎么样？"})
+    stock_plain_memory = load_memory("verify_memory_stock_plain")
+    stock_plain_ops = trace_memory_operations(stock_plain_response["trace_id"])
+    failures += not check(
+        "memory patch plain stock mention no watchlist add",
+        stock_plain_memory.get("watchlist") == []
+        and all(item.get("path") != "watchlist" for item in stock_plain_ops),
+        f"memory={stock_plain_memory} ops={stock_plain_ops}",
+    )
+
     theme_response = run_agent_turn({"user_id": "verify_script", "message": "AI硬件为什么热？"})
     theme_factuality = theme_response["review"].get("factuality") or {}
     failures += not check(
@@ -429,6 +487,22 @@ def main() -> int:
     )
     if trace:
         failures += not check_schema("schema agent trace", trace, "runtime/agent_trace.schema.json")
+        memory_patch = trace.get("memory_patch") or {}
+        memory_patch_ops = memory_patch.get("operations") or []
+        failures += not check(
+            "trace memory patch audit fields",
+            memory_patch.get("source") in ("user_message", "agent_response", "review")
+            and memory_patch.get("confidence") in ("low", "medium", "high")
+            and isinstance(memory_patch.get("reason"), str)
+            and len(memory_patch_ops) > 0
+            and all(
+                item.get("source") in ("user_message", "agent_response", "review")
+                and item.get("confidence") in ("low", "medium", "high")
+                and isinstance(item.get("reason"), str)
+                for item in memory_patch_ops
+            ),
+            f"memory_patch={memory_patch}",
+        )
         state_memory = (trace.get("state_summary") or {}).get("memory") or {}
         failures += not check(
             "trace memory snapshot",
@@ -489,6 +563,23 @@ def main() -> int:
         f"memory_keys={sorted(posted_memory.keys())}",
     )
     failures += not check_schema("schema post memory response", posted_memory, "runtime/user_memory.schema.json")
+
+    reset_memory("verify_legacy_patch")
+    legacy_memory = apply_patch(
+        "verify_legacy_patch",
+        {
+            "focus_themes": ["AI硬件"],
+            "watchlist": ["中际旭创"],
+            "question": "legacy question",
+        },
+    )
+    failures += not check(
+        "memory legacy patch compatibility",
+        legacy_memory.get("focus_themes") == ["AI硬件"]
+        and legacy_memory.get("watchlist") == ["中际旭创"]
+        and legacy_memory.get("last_questions", [None])[0] == "legacy question",
+        f"memory={legacy_memory}",
+    )
 
     if failures:
         print(f"\n{failures} verification check(s) failed.")
