@@ -75,6 +75,8 @@ def _schema_errors(payload: Any, schema: dict[str, Any], rel_path: str, path: st
         if not any(_matches_json_type(payload, str(item)) for item in expected_types):
             errors.append(f"{path}: expected {'/'.join(str(item) for item in expected_types)}")
             return errors
+    if "enum" in schema and payload not in schema["enum"]:
+        errors.append(f"{path}: expected one of {schema['enum']}")
 
     if isinstance(payload, dict):
         for key in schema.get("required", []):
@@ -138,10 +140,35 @@ def main() -> int:
     wiki_hits = search_wiki(["AI硬件为什么热", "拥挤度"], top_k=3)
     failures += not check("wiki search", len(wiki_hits) > 0, f"hits={len(wiki_hits)}")
     wiki_pages = load_wiki_pages()
+    wiki_schema_errors = []
+    for page in wiki_pages:
+        ok, errors = schema_required_ok(page, "wiki/wiki_page.schema.json")
+        if not ok:
+            wiki_schema_errors.extend(f"{page.get('topic_id')}: {error}" for error in errors)
     failures += not check(
         "schema wiki pages",
-        all(schema_required_ok(page, "wiki/wiki_page.schema.json")[0] for page in wiki_pages),
+        not wiki_schema_errors,
+        f"errors={wiki_schema_errors[:5]}" if wiki_schema_errors else f"pages={len(wiki_pages)}",
+    )
+    failures += not check(
+        "wiki governance fields",
+        all(
+            page.get("status") in ("draft", "reviewed", "deprecated")
+            and page.get("evidence_quality") in ("low", "medium", "high")
+            and "reviewed_at" in page
+            and isinstance(page.get("sources"), list)
+            and isinstance(page.get("forbidden_use"), list)
+            and isinstance(page.get("applicable_tasks"), list)
+            for page in wiki_pages
+        ),
         f"pages={len(wiki_pages)}",
+    )
+    failures += not check(
+        "wiki draft retrieval governance",
+        any(hit.get("status") == "draft" for hit in wiki_hits)
+        and all("status" in hit and "evidence_quality" in hit for hit in wiki_hits)
+        and all(isinstance(hit.get("forbidden_use"), list) and isinstance(hit.get("applicable_tasks"), list) for hit in wiki_hits),
+        f"statuses={[hit.get('status') for hit in wiki_hits]} qualities={[hit.get('evidence_quality') for hit in wiki_hits]}",
     )
 
     theme_signals = get_theme_signals(radar, "AI硬件/光通信")

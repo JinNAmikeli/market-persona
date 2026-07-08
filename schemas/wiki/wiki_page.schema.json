@@ -8,6 +8,9 @@
     "title",
     "version",
     "status",
+    "reviewed_at",
+    "evidence_quality",
+    "sources",
     "tags",
     "applicable_tasks",
     "forbidden_use",
@@ -24,7 +27,40 @@
       "type": "string"
     },
     "status": {
-      "type": "string"
+      "type": "string",
+      "enum": ["draft", "reviewed", "deprecated"]
+    },
+    "reviewed_at": {
+      "type": ["string", "null"]
+    },
+    "evidence_quality": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "source", "title", "url"],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": ["string", "null"]
+          },
+          "accessed_at": {
+            "type": ["string", "null"]
+          }
+        },
+        "additionalProperties": true
+      }
     },
     "tags": {
       "type": "array",
@@ -48,7 +84,47 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["section_id", "title", "content", "evidence", "updated_at"]
+        "required": ["section_id", "title", "content", "evidence", "updated_at"],
+        "properties": {
+          "section_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type", "source", "title", "url"],
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "accessed_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
       }
     }
   },

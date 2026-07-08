@@ -92,7 +92,7 @@
 
 ## ISSUE-004 Wiki Governance
 
-状态：待办
+状态：完成
 建议优先级：中
 
 目标：
@@ -100,11 +100,26 @@
 - 为 Wiki 增加审核状态、版本流转、证据质量要求和更新流程。
 - 补齐 draft 内容与真实来源之间的差距。
 
-需要用户批准：
+已完成：
 
-- 投资相关表达模板。
-- Wiki 内容审核口径。
-- 外部来源白名单。
+- `schemas/wiki/wiki_page.schema.json` 新增并约束 `status`、`reviewed_at`、`evidence_quality`、`sources` 等治理字段。
+- 现有 Wiki 页面补齐最小页面级治理字段，保持正文不扩写；当前均为 `draft`、`evidence_quality: low`，来源记录为内部手工说明。
+- `agent/wiki.py` 检索结果保留 `version`、`status`、`reviewed_at`、`evidence_quality`、`sources`、`applicable_tasks`、`forbidden_use` 和 section 更新时间。
+- `scripts/verify_runtime.py` 增加 Wiki schema、枚举、draft 检索暴露治理字段、`forbidden_use` / `applicable_tasks` 类型检查。
+- `docs/CONTRACTS.md` 更新 Wiki 契约，明确 draft 可检索但必须暴露治理字段。
+
+未实现：
+
+- 未联网抓取来源。
+- 未新增外部来源白名单。
+- 未修改投资相关表达模板或金融合规边界。
+- 未做 factuality 新规则，仅为 factuality evidence binding 暴露治理数据。
+
+验收：
+
+- `python -m json.tool` 检查修改过的 Wiki/schema JSON 应通过。
+- `python -m py_compile agent/wiki.py scripts/verify_runtime.py` 应通过。
+- `python scripts/verify_runtime.py` 应通过。
 
 ## ISSUE-005 Memory Patch Builder
 

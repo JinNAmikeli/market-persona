@@ -2,60 +2,66 @@
 
 更新时间：2026-07-08
 当前版本：Market Harness Agent v0.1
-本轮任务：ISSUE-010 Factuality Edge Case Repair
+本轮任务：ISSUE-004 Wiki Governance
 
 ## 1. 本轮完成内容
 
-本轮只完成 factuality edge case 修复，未改 UI、`server.py`、合规边界、Wiki 内容或外部依赖：
+本轮只完成 Wiki 内容治理，未改 UI、`server.py`、`market/collector.py`、金融合规边界、外部依赖或 factuality 新规则：
 
-- 修复 `agent/reflector.py` 的 0-claim 边界：非核心任务或普通回复在 `checked_claims == 0` 且没有 unsupported/conflict 时通过 factuality。
-- 保留 core factuality task 保护：`market_overview`、`theme_explanation`、`briefing_script` 若没有可绑定核心判断，仍返回 `insufficient_evidence`。
-- 新增兼容字段保留 repair 前语义：repair 后 final review 的 `review.factuality` 会附带 `repair_status: claims_removed` 和 `repaired_from_factuality`。
-- 更新 `agent/runtime.py`，在 repair 后二次 review 完成时挂回修复前 factuality。
-- 更新 `agent/prompts.py`，将 LLM Reflection coverage 示例从旧 `sufficient` 改为 `supported`，并明确 coverage 只能使用 `supported`、`partial`、`insufficient`。
-- 更新 `scripts/verify_runtime.py`，增加普通 0-claim 回复、disclaimer-only、core 0-claim 失败、repair 后 factuality 保留和 prompt coverage 枚举的回归验证。
-- 在 `docs/ISSUES.md` 登记 ISSUE-010 完成。
+- 更新 `schemas/wiki/wiki_page.schema.json`，将 `status` 限定为 `draft` / `reviewed` / `deprecated`，将 `evidence_quality` 限定为 `low` / `medium` / `high`，并新增页面级 `reviewed_at`、`sources` 结构约束。
+- 为现有 `wiki/themes/*.json` 和 `wiki/risks/*.json` 补齐最小治理字段；正文未扩写，当前页面均保持 `draft`，`reviewed_at` 为 `null`，`evidence_quality` 为 `low`。
+- 更新 `agent/wiki.py`，让检索结果保留 `version`、`status`、`reviewed_at`、`evidence_quality`、`sources`、`applicable_tasks`、`forbidden_use` 和 section 更新时间，供 factuality 与 trace 使用。
+- 更新 `scripts/verify_runtime.py`，增加 schema enum 校验、Wiki 页面治理字段检查、draft 检索结果暴露 `status` / `evidence_quality` 检查，以及 `forbidden_use` / `applicable_tasks` 类型检查。
+- 更新 `docs/CONTRACTS.md` 的 Wiki 契约。
+- 在 `docs/ISSUES.md` 标记 ISSUE-004 完成。
 
 ## 2. 本轮未完成内容
 
-按任务要求，本轮没有处理其他 Issue：
+按任务边界，本轮没有处理：
 
-- 未修改 UI。
-- 未修改 `server.py`。
-- 未新增外部依赖。
-- 未修改金融合规边界。
-- 未扩写 Wiki 内容。
-- 未重构 factuality 系统。
+- 未联网抓取或补充外部来源。
+- 未新增外部来源白名单。
+- 未定义 reviewed / deprecated 的审核流程自动化。
+- 未修改金融合规边界或投资表达模板。
+- 未实现新的 factuality 判定规则。
+- 未处理 memory、trace debug、TTS、定时任务或存储迁移。
 
 ## 3. 业务代码状态
 
 本轮修改范围限制在用户允许文件：
 
-- `agent/reflector.py`
-- `agent/runtime.py`
-- `agent/prompts.py`
+- `schemas/wiki/wiki_page.schema.json`
+- `wiki/themes/*.json`
+- `wiki/risks/*.json`
+- `agent/wiki.py`
 - `scripts/verify_runtime.py`
+- `docs/CONTRACTS.md`
 - `docs/ISSUES.md`
 - `docs/HANDOFF.md`
 
-新增 factuality 字段为兼容扩展，没有加入 schema required，以保留旧 trace、硬规则拦截结果和现有 API schema 的兼容性。
+`draft` 页面仍可被检索，但检索结果必须暴露治理字段。当前 Wiki 来源均为内部手工说明，因此证据质量统一标为 `low`，避免把未审核内容提升为高质量事实来源。
 
 ## 4. 测试结果
 
 已运行：
 
-- `python -m py_compile agent/reflector.py agent/runtime.py agent/prompts.py scripts/verify_runtime.py`
-- `python -m json.tool schemas/api/agent_chat_response.schema.json`
-- `python -m json.tool schemas/runtime/agent_trace.schema.json`
+- `python -m json.tool schemas/wiki/wiki_page.schema.json`
+- `python -m json.tool wiki/index.json`
+- `python -m json.tool wiki/themes/ai_hardware.json`
+- `python -m json.tool wiki/themes/semiconductor.json`
+- `python -m json.tool wiki/themes/lithium_energy.json`
+- `python -m json.tool wiki/risks/crowding.json`
+- `python -m json.tool wiki/risks/chasing_hotspots.json`
+- `python -m json.tool wiki/risks/data_staleness.json`
+- `python -m py_compile agent/wiki.py scripts/verify_runtime.py`
 - `python scripts/verify_runtime.py`
 
 结果：全部通过。
 
-注意：`python scripts/verify_runtime.py` 会写入运行期 memory 和 trace 文件；本次运行未让这些运行期数据进入 Git 状态。
+注意：`python scripts/verify_runtime.py` 会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`；本轮运行后这些运行期文件未出现在 Git 待提交状态中。
 
-## 5. 交接注意事项
+## 5. 遗留风险
 
-- P1 已通过非核心 0-claim 分支修复；普通问候、自选股未读取说明、disclaimer-only 均通过 factuality。
-- P2 已通过 `repaired_from_factuality` 保留 repair 前 factuality 摘要、状态和 claim 列表；final review 自身仍保持修复后的当前审核结果。
-- P3 已通过 prompt 示例和验证脚本修复，避免 LLM reflection 继续输出旧 `coverage: sufficient`。
-- 如果本轮代码要入 Git，建议作为 ISSUE-003 之后的独立 fix commit；若 ISSUE-003 尚未对外发布，也可以 amend 到 ISSUE-003 commit。
+- 当前 Wiki 页面仍是 `draft`，来源为内部手工说明，不能当作已审核外部事实库使用。
+- `reviewed_at`、`reviewed` 状态流转和外部来源白名单仍需要后续单独 Issue 与用户批准。
+- `deprecated` 页面是否从回答中排除尚未定义，本轮只保证状态会被检索结果显式暴露。

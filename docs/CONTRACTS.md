@@ -112,11 +112,18 @@ Wiki 页面应包含：
 
 - `topic_id`
 - `title`
-- `version`
-- `status`
+- `version`：页面治理版本，当前用日期字符串表示。
+- `status`：只能是 `draft`、`reviewed`、`deprecated`。
+- `reviewed_at`：人工审核时间；`draft` 可为 `null`。
+- `evidence_quality`：只能是 `low`、`medium`、`high`。
+- `sources`：页面级来源记录。
 - `tags`
 - `applicable_tasks`
 - `forbidden_use`
 - `sections`
 
-section 应包含标题、正文、证据、更新时间。投资相关 Wiki 内容更新需要人工审核。
+`applicable_tasks` 和 `forbidden_use` 必须始终存在且为数组，用于让 factuality、trace 和回答生成识别 Wiki 内容的适用范围与禁用边界。
+
+section 应包含 `section_id`、标题、正文、证据和更新时间。页面级 `sources` 与 section 级 `evidence` 都应记录 `type`、`source`、`title`、`url`；没有外部 URL 时可使用 `null`，但不得把内部手工说明伪装成外部来源。
+
+Wiki 检索可以返回 `draft` 页面，但检索结果必须暴露 `status`、`version`、`reviewed_at`、`evidence_quality`、`sources`、`applicable_tasks` 和 `forbidden_use`，方便 factuality evidence binding、trace 审计和后续审核流使用。`deprecated` 页面是否参与回答需要由后续单独 Issue 定义；本契约只要求状态被显式暴露。

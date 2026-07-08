@@ -75,12 +75,19 @@ def search_wiki(queries: list[str], top_k: int = 5) -> list[dict[str, Any]]:
                 {
                     "topic_id": page.get("topic_id"),
                     "title": page.get("title"),
+                    "version": page.get("version"),
+                    "status": page.get("status"),
+                    "reviewed_at": page.get("reviewed_at"),
+                    "evidence_quality": page.get("evidence_quality"),
+                    "sources": page.get("sources") or [],
+                    "applicable_tasks": page.get("applicable_tasks") or [],
+                    "forbidden_use": page.get("forbidden_use") or [],
                     "section_id": section.get("section_id"),
                     "section_title": section.get("title"),
                     "content": section.get("content"),
                     "score": score,
                     "evidence": section.get("evidence") or [],
-                    "forbidden_use": page.get("forbidden_use") or [],
+                    "section_updated_at": section.get("updated_at"),
                 }
             )
     return sorted(hits, key=lambda item: item["score"], reverse=True)[:top_k]
