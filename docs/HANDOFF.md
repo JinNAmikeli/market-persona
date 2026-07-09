@@ -1,74 +1,62 @@
 # Handoff
 
-更新时间：2026-07-08
+更新时间：2026-07-09
 当前版本：Market Harness Agent v0.1
-本轮任务：ISSUE-006 Trace Debugging Improvements
+本轮任务：ISSUE-007 Storage Strategy Decision
 
 ## 1. 本轮完成内容
 
-本轮只完成 Trace Debugging Improvements，未改 `server.py` 路由、Agent Runtime 主流程、金融合规边界、memory/factuality 规则、外部依赖或运行期 trace 数据：
+本轮只完成 Storage Strategy Decision 决策评估，未实现任何存储迁移：
 
-- `agent/trace.py` 增强 `summarize_trace(trace)`，新增 repair、claim binding、unsupported/conflict claim、memory patch 和 Wiki 治理摘要字段。
-- `agent/trace.py` 新增纯函数 `compare_traces(left, right)`，只返回结构化 `differences` / `matches`，不写文件、不改 API 路由。
-- `schemas/api/agent_traces_response.schema.json` 覆盖新增 summary 字段。
-- `schemas/runtime/agent_trace.schema.json` 小范围补充 repair 后 factuality 兼容字段。
-- `scripts/verify_runtime.py` 增加 trace summary、trace diff summary 和 traces response schema 回归。
-- `static/app.js` 在已有 `?debug=1` 调试台里小范围展示 claim、memory operation、Wiki status/quality 等字段。
-- `static/styles.css` 只补充 debug 指标块必要样式。
-- `docs/CONTRACTS.md` 和 `docs/ISSUES.md` 已同步更新。
+- 阅读并对照了 `docs/PROJECT_SPEC.md`、`docs/ARCHITECTURE_FREEZE.md`、`docs/AUTHORITY_MATRIX.md`、`docs/CONTRACTS.md`、`docs/AGENT_RULES.md`、`docs/ISSUES.md`、`docs/HANDOFF.md`。
+- 阅读了 `market/data_store.py`、`agent/memory.py`、`agent/trace.py`、`scripts/verify_runtime.py` 和 `.gitignore`，确认当前 runtime 数据使用本地 JSON / JSONL。
+- 在 `docs/ISSUES.md` 将 ISSUE-007 标记为完成，并记录四种方案比较、推荐结论、SQLite 触发条件、下一步 Issue 和遗留风险。
+- 在 `docs/CONTRACTS.md` 补充 v0.1 当前存储边界：继续使用 `data/xueqiu_radar_latest.json`、`data/xueqiu_radar_history.jsonl`、`data/user_memory.json`、`data/agent_traces.jsonl`。
+- 未新增 `docs/STORAGE_STRATEGY.md`，因为 `.gitignore` 默认忽略新增 `docs/*.md`，且既有治理文档足够承载本轮决策。
 
-## 2. 新增 Trace Summary 字段
+## 2. 决策结论
 
-- `repair_status`
-- `claim_binding_count`
-- `unsupported_claim_count`
-- `conflicting_claim_count`
-- `memory_operation_count`
-- `memory_patch_confidence`
-- `wiki_statuses`
-- `wiki_evidence_qualities`
+- 当前 v0.1 是本地单用户工具，继续使用 JSON / JSONL。
+- 现在不迁移 SQLite。
+- 当前优先补数据保留、归档、清理、导出和备份策略。
+- SQLite 只作为未来触发条件满足后的候选方案。
 
-## 3. Trace Diff
+## 3. SQLite 迁移触发条件
 
-`compare_traces(left, right)` 当前比较：
+- `data/agent_traces.jsonl` trace 数量达到约 10,000 条，或单文件体积达到约 50 MB，并且查询或打开详情出现可感知延迟。
+- `data/xueqiu_radar_history.jsonl` 需要跨日期、多条件、主题/个股维度的复杂查询。
+- 项目进入多用户使用场景，需要隔离用户数据、审计不同用户行为或处理并发写入。
+- memory 写入需要事务一致性，例如多个 runtime turn、手动同步和后续任务可能并发修改同一用户状态。
+- JSONL 整文件读取、倒序查找或过滤明显变慢，影响 `/api/agent/traces`、调试台或验证脚本体验。
+- 数据治理需求超过简单文件策略，需要可靠归档、压缩、导出、清理、恢复、校验和增量备份。
 
-- `task_type`
-- `execution_mode`
-- `review_passed`
-- `factuality_status`
-- `factuality_coverage`
-- `repair_changed`
-- `repair_status`
-- `memory_patch_keys`
-- `memory_operation_count`
-- `memory_patch_confidence`
-- `claim_binding_count`
-- `unsupported_claim_count`
-- `conflicting_claim_count`
-- `wiki_statuses`
-- `wiki_evidence_qualities`
+## 4. 下一步建议 Issue
 
-## 4. 本轮未完成内容
+- Runtime Data Retention Policy：定义 trace、memory、market history 的保留窗口、最大体积、备份频率、隐私边界和人工确认规则。
+- Trace Archive and Cleanup：在保留策略批准后，设计 trace 按日期/体积分段归档、压缩、导出和清理的最小实现。
+- SQLite Migration Design：仅在触发条件满足后启动；先设计 schema、迁移/回滚、兼容读取、备份恢复和验收标准，再申请用户批准。
 
-- 未新增 trace 导出能力。
-- 未新增或修改 `/api/agent/traces` 路由。
-- 未新增时间范围 UI 控件。
-- 未改 Runtime 写 trace 的主流程。
-- 未改 memory patch、factuality、Wiki 审核或金融合规规则。
+## 5. 本轮未完成内容
 
-## 5. 验收提示
+- 未修改业务代码。
+- 未新增 SQLite、数据库文件、迁移脚本或外部依赖。
+- 未改 `market/data_store.py`、`agent/memory.py`、`agent/trace.py`、`server.py` 或 API。
+- 未修改运行期 `data/` 文件。
+- 未做多用户权限系统。
+- 未实现数据保留、归档、清理、导出或备份工具。
 
-应运行：
+## 6. 验收提示
 
-- `python -m py_compile agent/trace.py scripts/verify_runtime.py`
-- `python -m json.tool schemas/api/agent_traces_response.schema.json`
-- `python -m json.tool schemas/runtime/agent_trace.schema.json`
-- `python scripts/verify_runtime.py`
+本轮为文档决策型 Issue，无需运行 `python scripts/verify_runtime.py`。该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`，本轮明确不修改运行期 data 文件。
 
-注意：`python scripts/verify_runtime.py` 会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`；这些运行期文件不应提交。
+建议检查：
 
-## 6. 遗留风险
+- `git diff -- docs/ISSUES.md docs/HANDOFF.md docs/CONTRACTS.md`
+- `git diff --stat`
 
-- `wiki_statuses` 和 `wiki_evidence_qualities` 只在 trace 的 `wiki_hits` 已暴露对应字段时提取；旧 trace 或无 Wiki 命中的 trace 会返回空数组。
-- `memory_operation_count` 对新结构 patch 使用 `operations` 数量；对旧式扁平 patch 只能做保守估算。
-- `compare_traces` 当前是本地纯函数和验证覆盖，不暴露为 API；后续若要前端直接复用后端 diff，需要单独批准路由或 API 设计。
+## 7. 遗留风险
+
+- 当前 trace 查询和过滤依赖整文件读取，文件增长后会逐步变慢。
+- 当前缺少明确保留和清理策略，长期运行可能积累较大的本地 trace/history 文件。
+- memory 是单 JSON 文件，适合本地单用户；未来并发、多用户或事务一致性需求出现时需要重新评估。
+- 归档或清理如果先于策略设计实现，可能破坏审计追溯。

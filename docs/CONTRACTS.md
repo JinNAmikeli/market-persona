@@ -2,7 +2,7 @@
 
 状态：冻结
 版本：Market Harness Agent v0.1
-更新日期：2026-07-08
+更新日期：2026-07-09
 
 ## 1. 契约原则
 
@@ -164,3 +164,16 @@ Wiki 页面应包含：
 section 应包含 `section_id`、标题、正文、证据和更新时间。页面级 `sources` 与 section 级 `evidence` 都应记录 `type`、`source`、`title`、`url`；没有外部 URL 时可使用 `null`，但不得把内部手工说明伪装成外部来源。
 
 Wiki 检索可以返回 `draft` 页面，但检索结果必须暴露 `status`、`version`、`reviewed_at`、`evidence_quality`、`sources`、`applicable_tasks` 和 `forbidden_use`，方便 factuality evidence binding、trace 审计和后续审核流使用。`deprecated` 页面是否参与回答需要由后续单独 Issue 定义；本契约只要求状态被显式暴露。
+
+## 8. 存储边界
+
+v0.1 当前运行期存储保持本地 JSON / JSONL 文件：
+
+- `data/xueqiu_radar_latest.json`：当前市场快照。
+- `data/xueqiu_radar_history.jsonl`：市场历史快照。
+- `data/user_memory.json`：本地用户 memory。
+- `data/agent_traces.jsonl`：Agent trace 审计记录。
+
+当前不引入 SQLite、外部数据库或存储迁移脚本。任何从 JSON / JSONL 迁移到 SQLite、外部数据库或其他长期存储的改动，都属于存储迁移，必须先登记单独 Issue、说明触发条件与迁移设计，并获得用户批准。
+
+数据保留、归档、压缩、导出、清理和备份策略尚未实现；这些能力应先作为运行期数据治理 Issue 设计和验收，不应被默认为已存在的存储能力。
