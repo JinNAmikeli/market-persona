@@ -415,3 +415,56 @@ SQLite 迁移触发条件：
 - `git diff --stat` 应只显示允许范围内的文档修改。
 - `git diff` 应确认没有运行期 `data/`、代码、schema 或脚本改动。
 - 本轮不需要运行 `python scripts/verify_runtime.py`，因为该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`。
+
+## ISSUE-012 Runtime Data Retention Inspector
+
+状态：完成
+建议优先级：中
+
+背景：
+
+- ISSUE-011 已完成 Runtime Data Retention Policy。
+- 当前任何删除、压缩、归档、导出、改变保留范围，都必须后续单独 Issue + 用户确认。
+- 在进入 Trace Archive and Cleanup 前，需要一个只读 inspector，用于人工判断 trace/history 是否接近阈值。
+
+目标：
+
+- 新增只读脚本检查运行期数据文件状态。
+- 只报告文件存在性、体积和 JSONL 行数，不读取或输出 memory/trace 具体内容。
+- 不修改任何 `data/` 文件，不实现治理动作。
+
+已完成：
+
+- 新增 `scripts/inspect_runtime_data.py`。
+- 脚本只使用 Python 标准库。
+- 检查以下运行期文件：
+  - `data/xueqiu_radar_latest.json`
+  - `data/xueqiu_radar_history.jsonl`
+  - `data/user_memory.json`
+  - `data/agent_traces.jsonl`
+- 输出 JSON 报告，字段包含 `file_path`、`exists`、`size_bytes`、`size_mb`、`line_count`、`threshold_status`、`note`。
+- 仅对 JSONL 文件统计 `line_count`；不解析、不打印 JSONL 记录内容。
+- 对 `data/user_memory.json` 只报告存在性和体积，不读取或输出内容。
+- 对 `data/agent_traces.jsonl` 只统计行数和体积，不读取或输出具体 trace 内容。
+- 缺失文件友好返回报告项，不作为致命错误。
+- trace 阈值参考 ISSUE-011：约 10,000 行或约 50 MB 为 `exceeds`，接近阈值为 `watch`。
+- market history 体积达到约 50 MB 时提示 `watch`，并说明单次检查不能证明持续增长。
+- 在 `docs/RUNBOOK.md` 补充只读 inspector 的运行方式和边界。
+- 更新 `docs/HANDOFF.md` 记录本轮完成内容、未做事项、验证结果和后续建议。
+
+未实现：
+
+- 未删除、压缩、归档、导出、备份或修改任何 `data/` 文件。
+- 未实现清理工具、归档工具、导出工具、备份/恢复工具。
+- 未修改 JSON / JSONL 存储方式。
+- 未引入 SQLite、外部数据库、外部依赖、定时任务、主动触达或多用户能力。
+- 未修改 `server.py`、API 路由、agent runtime 主流程、market 采集逻辑、前端 UI、schema 或金融合规边界。
+
+验收：
+
+- `python -m py_compile scripts/inspect_runtime_data.py` 已通过。
+- `python scripts/inspect_runtime_data.py` 已通过，退出码为 0。
+- inspector 输出只包含文件路径、存在性、体积、JSONL 行数、阈值状态和说明；未输出 memory 或 trace 内容。
+- `git diff --stat` 只显示允许范围内文件。
+- `git diff` 确认没有 `data/`、`server.py`、`agent/`、`market/`、`static/`、`schemas/` 改动。
+- 未运行 `python scripts/verify_runtime.py`，因为本 Issue 不涉及 runtime 行为，且该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`。

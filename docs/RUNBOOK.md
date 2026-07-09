@@ -119,6 +119,14 @@ data/user_memory.json
 data/agent_traces.jsonl
 ```
 
+只读 inspector：
+
+```bash
+python scripts/inspect_runtime_data.py
+```
+
+该脚本只报告文件存在性、体积和 JSONL 行数，不输出 memory 或 trace 的具体内容。`threshold_status` 只用于人工判断，不会触发自动清理、压缩、归档、导出或备份。
+
 人工维护时只检查文件体积、trace 数量、history 增长和查询是否变慢；不要在没有单独 Issue、备份和用户确认时删除、压缩、归档、导出或改变保留范围。
 
 `data/user_memory.json` 删除、重置、恢复或大范围改写必须单独确认。不要把 memory、trace 或本地运行期数据上传到外部服务，也不要把本地隐私数据写入治理文档。
