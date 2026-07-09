@@ -141,6 +141,17 @@ python scripts/inspect_runtime_data.py
 
 `data/user_memory.json` 删除、重置、恢复或大范围改写必须单独确认。不要把 memory、trace 或本地运行期数据上传到外部服务，也不要把本地隐私数据写入治理文档。
 
+Runtime data export 前检查：
+
+- 导出前必须确认是否存在单独 Issue 和用户明确批准。
+- 操作前说明导出范围、格式、保存位置、是否包含隐私或半隐私数据、是否脱敏、是否覆盖已有文件。
+- latest snapshot 可再生成但仍属于本地运行数据；market history 导出前应说明时间范围和用途。
+- agent traces 默认高敏，user memory 为最高敏感级别；包含 trace 或 memory 的导出必须单独确认。
+- 后续导出工具默认先做 dry-run / manifest，不直接导出敏感内容。
+- 导出文件不应提交到 Git。
+- 不上传导出文件或本地运行期数据到外部服务。
+- 不把导出内容写入治理文档、handoff、调试输出、日志或提交信息。
+
 ## 8. 常见问题
 
 ### 服务无法刷新

@@ -251,3 +251,36 @@ v0.1 当前运行期存储保持本地 JSON / JSONL 文件：
 - `data/user_memory.json` 和 `data/agent_traces.jsonl` 不应提交到 Git。
 - 不上传 memory、trace 或本地运行期数据到外部服务。
 - 不把本地隐私数据、trace 内容或 memory 内容写入治理文档。
+
+### Runtime Data Export 边界
+
+runtime data export 指把本地运行期数据另存为人工查看、迁移评估、审计复核或离线分析材料的动作。当前仅定义治理边界，不实现导出工具、导出 API、导出脚本或导出文件。
+
+按数据类型划分：
+
+- latest snapshot：`data/xueqiu_radar_latest.json` 可再生成，敏感级别相对较低，但仍属于本地运行数据；导出前仍需说明用途、格式、保存位置和是否覆盖已有文件。
+- market history：`data/xueqiu_radar_history.jsonl` 可用于本地分析；导出前必须说明时间范围、字段范围、用途、格式和保存位置。
+- agent traces：`data/agent_traces.jsonl` 包含用户问题、工具证据、review、repair、memory patch 和最终回复等审计信息，默认高敏；任何导出必须单独确认，默认应先做 dry-run / manifest，不直接导出敏感内容。
+- user memory：`data/user_memory.json` 是最高敏感级别的本地用户旅程状态；导出必须单独确认，默认不进入普通 runtime data export。
+
+导出前确认规则：
+
+- 必须说明导出范围、导出格式、保存位置、是否包含隐私或半隐私数据、是否脱敏、是否覆盖已有文件。
+- 包含 memory 或 trace 的导出必须单独确认，不得混入普通 market snapshot/history 导出。
+- 导出文件不应提交到 Git。
+- 不允许自动上传导出文件或本地运行期数据到外部服务。
+- 不允许把导出内容写入治理文档、handoff、调试输出、日志或提交信息。
+
+脱敏原则：
+
+- 后续导出工具必须先设计字段清单、敏感字段分类和脱敏策略。
+- trace 导出默认应排除或脱敏用户原始问题、memory patch、review 中可能含有的用户上下文，以及任何可识别本地用户旅程的信息。
+- memory 导出默认不启用；如后续单独 Issue 批准，必须说明完整字段范围、脱敏方式、保存位置、验收方式和放弃脱敏的确认条件。
+- market history 和 latest snapshot 即使低敏，也不得被默认为可上传或可提交。
+
+后续实现原则：
+
+- Runtime Data Export Tooling 必须单独 Issue。
+- 后续工具默认先输出 dry-run / manifest，列出将导出的文件、类型、时间范围、字段范围、敏感级别、脱敏状态和目标位置。
+- 未经用户确认，导出工具不得直接写出包含 memory 或 trace 具体内容的文件。
+- 本契约不改变 JSON / JSONL 存储方式，不引入 SQLite、外部数据库、外部依赖、定时任务、主动触达或多用户能力。

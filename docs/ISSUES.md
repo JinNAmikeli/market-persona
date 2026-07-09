@@ -526,3 +526,63 @@ SQLite 迁移触发条件：
 - 不运行会读取或输出 memory 内容的命令。
 - 不新增备份文件。
 - 不新增脚本。
+
+## ISSUE-014 Runtime Data Export Policy
+
+状态：完成
+建议优先级：中
+
+背景：
+
+- ISSUE-011 已定义 Runtime Data Retention Policy。
+- ISSUE-012 已新增只读 Runtime Data Retention Inspector。
+- ISSUE-013 已定义 Memory Backup and Restore Policy。
+- 当前需要定义 runtime data export 的治理边界，但本轮不实现任何导出工具。
+
+目标：
+
+- 定义 runtime data export 的治理边界。
+- 覆盖 latest snapshot、market history、agent traces、user memory 的导出规则。
+- 明确隐私、脱敏、用户确认、本地保存、禁止上传外部服务和禁止提交导出文件的边界。
+- 保持本轮为文档治理任务，不导出、不读取、不打印 memory 或 trace 具体内容。
+
+已完成：
+
+- 在 `docs/CONTRACTS.md` 补充 Runtime Data Export 边界。
+- 明确 latest snapshot 可再生成、低敏，但仍属于本地运行数据；导出前仍需说明用途、格式、保存位置和覆盖行为。
+- 明确 market history 可用于本地分析；导出前应说明时间范围、字段范围、用途、格式和保存位置。
+- 明确 agent traces 包含用户问题、证据、review、repair、memory patch、最终回复等审计信息，默认高敏，导出必须单独确认。
+- 明确 user memory 是最高敏感级别，导出必须单独确认，默认不进入普通 runtime data export。
+- 明确导出前必须说明范围、格式、保存位置、是否包含隐私数据、是否脱敏、是否覆盖已有文件。
+- 明确导出文件不应提交到 Git，不允许自动上传外部服务，不允许把导出内容写入 docs、handoff、日志、调试输出或提交信息。
+- 明确后续导出工具必须单独 Issue，默认先做 dry-run / manifest，不直接导出敏感内容。
+- 在 `docs/RUNBOOK.md` 补充 runtime data export 前人工检查规则，不提供导出命令。
+- 更新 `docs/HANDOFF.md` 记录本轮完成内容、未做事项、验收结果和后续建议。
+
+未实现：
+
+- 未实现任何导出工具、导出脚本、导出 API 或导出文件。
+- 未导出、读取、打印 memory 或 trace 具体内容。
+- 未新增脚本。
+- 未新增导出文件。
+- 未上传任何本地数据到外部服务。
+- 未修改任何 `data/` 文件。
+- 未修改 JSON / JSONL 存储方式。
+- 未引入 SQLite、外部依赖、定时任务、多用户能力。
+- 未修改 `server.py`、API、agent runtime、market、static、schemas、scripts、wiki、README 或 `.gitignore`。
+- 未修改金融合规边界。
+
+后续建议 Issue：
+
+- Runtime Data Export Tooling：实现前先设计 dry-run / manifest、字段范围、脱敏策略、保存位置和用户确认流程。
+- Trace Export Redaction Policy：单独定义 trace 导出字段、敏感字段脱敏、memory patch 处理和审计验收。
+- Market History Export Tooling：定义 market history 时间范围、格式、保存位置和本地分析用途。
+- Memory Export Approval Flow：仅在用户明确需要时设计 memory 导出确认、脱敏和保存流程；默认不进入普通导出。
+
+验收：
+
+- `git diff --stat` 应只显示允许范围内文档。
+- `git diff` 应确认没有 `data/`、`scripts/`、`server.py`、`agent/`、`market/`、`static/`、`schemas/` 改动。
+- 不运行 `python scripts/verify_runtime.py`。
+- 不运行会读取或输出 memory/trace 内容的命令。
+- 不新增导出文件或脚本。
