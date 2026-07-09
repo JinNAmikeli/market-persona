@@ -2,61 +2,71 @@
 
 更新时间：2026-07-09
 当前版本：Market Harness Agent v0.1
-本轮任务：ISSUE-007 Storage Strategy Decision
+本轮任务：ISSUE-011 Runtime Data Retention Policy
 
 ## 1. 本轮完成内容
 
-本轮只完成 Storage Strategy Decision 决策评估，未实现任何存储迁移：
+本轮只定义运行期数据保留策略，未实现任何清理、归档、导出、备份或存储迁移能力：
 
-- 阅读并对照了 `docs/PROJECT_SPEC.md`、`docs/ARCHITECTURE_FREEZE.md`、`docs/AUTHORITY_MATRIX.md`、`docs/CONTRACTS.md`、`docs/AGENT_RULES.md`、`docs/ISSUES.md`、`docs/HANDOFF.md`。
-- 阅读了 `market/data_store.py`、`agent/memory.py`、`agent/trace.py`、`scripts/verify_runtime.py` 和 `.gitignore`，确认当前 runtime 数据使用本地 JSON / JSONL。
-- 在 `docs/ISSUES.md` 将 ISSUE-007 标记为完成，并记录四种方案比较、推荐结论、SQLite 触发条件、下一步 Issue 和遗留风险。
-- 在 `docs/CONTRACTS.md` 补充 v0.1 当前存储边界：继续使用 `data/xueqiu_radar_latest.json`、`data/xueqiu_radar_history.jsonl`、`data/user_memory.json`、`data/agent_traces.jsonl`。
-- 未新增 `docs/STORAGE_STRATEGY.md`，因为 `.gitignore` 默认忽略新增 `docs/*.md`，且既有治理文档足够承载本轮决策。
+- 阅读并对照了 `docs/PROJECT_SPEC.md`、`docs/ARCHITECTURE_FREEZE.md`、`docs/AUTHORITY_MATRIX.md`、`docs/CONTRACTS.md`、`docs/AGENT_RULES.md`、`docs/ISSUES.md`、`docs/HANDOFF.md` 和 `docs/RUNBOOK.md`。
+- 在 `docs/ISSUES.md` 登记并完成 ISSUE-011 Runtime Data Retention Policy。
+- 在 `docs/CONTRACTS.md` 补充运行期数据保留策略边界，覆盖 latest snapshot、market history、user memory、agent traces。
+- 在 `docs/RUNBOOK.md` 小范围补充人工检查提示，强调只检查和记录，不执行清理。
+- 更新本 `docs/HANDOFF.md`，记录完成内容、未完成内容、验收方式、后续建议 Issue 和用户批准事项。
 
-## 2. 决策结论
+## 2. 修改文件列表
 
-- 当前 v0.1 是本地单用户工具，继续使用 JSON / JSONL。
-- 现在不迁移 SQLite。
-- 当前优先补数据保留、归档、清理、导出和备份策略。
-- SQLite 只作为未来触发条件满足后的候选方案。
+- `docs/ISSUES.md`
+- `docs/CONTRACTS.md`
+- `docs/HANDOFF.md`
+- `docs/RUNBOOK.md`
 
-## 3. SQLite 迁移触发条件
+## 3. ISSUE-011 完成内容
 
-- `data/agent_traces.jsonl` trace 数量达到约 10,000 条，或单文件体积达到约 50 MB，并且查询或打开详情出现可感知延迟。
-- `data/xueqiu_radar_history.jsonl` 需要跨日期、多条件、主题/个股维度的复杂查询。
-- 项目进入多用户使用场景，需要隔离用户数据、审计不同用户行为或处理并发写入。
-- memory 写入需要事务一致性，例如多个 runtime turn、手动同步和后续任务可能并发修改同一用户状态。
-- JSONL 整文件读取、倒序查找或过滤明显变慢，影响 `/api/agent/traces`、调试台或验证脚本体验。
-- 数据治理需求超过简单文件策略，需要可靠归档、压缩、导出、清理、恢复、校验和增量备份。
+- 定义 `data/xueqiu_radar_latest.json` 为 latest snapshot：可刷新再生成，不等同于审计历史。
+- 定义 `data/xueqiu_radar_history.jsonl` 为 market history：未来可以设置归档或清理窗口，本轮不执行。
+- 定义 `data/user_memory.json` 为 user memory：优先保护，不自动清理；删除、重置、恢复或大范围改写必须单独确认。
+- 定义 `data/agent_traces.jsonl` 为 agent traces：优先保护审计链，不在无归档/备份/人工确认时删除。
+- 明确保留优先级：memory、traces、market history、latest snapshot。
+- 补充建议观察阈值和触发条件：trace 数量约 10,000 条、trace 文件约 50 MB、trace 查询变慢、history 文件体积增长、history 复杂查询需求、memory 备份/恢复需求。
+- 明确任何删除、压缩、归档、导出或改变保留范围的实际操作，都必须在后续单独 Issue 中实现并经用户确认。
+- 明确删除前必须有备份，或由用户明确确认放弃备份。
+- 明确 `data/user_memory.json` 和 `data/agent_traces.jsonl` 不应提交，不上传 memory、trace 或本地运行期数据到外部服务，不把本地隐私数据写入治理文档。
 
-## 4. 下一步建议 Issue
+## 4. 明确未做事项
 
-- Runtime Data Retention Policy：定义 trace、memory、market history 的保留窗口、最大体积、备份频率、隐私边界和人工确认规则。
-- Trace Archive and Cleanup：在保留策略批准后，设计 trace 按日期/体积分段归档、压缩、导出和清理的最小实现。
-- SQLite Migration Design：仅在触发条件满足后启动；先设计 schema、迁移/回滚、兼容读取、备份恢复和验收标准，再申请用户批准。
+- 未实现清理、归档、压缩、导出或备份工具。
+- 未修改 JSON / JSONL 存储方式。
+- 未引入 SQLite、外部数据库、外部依赖、定时任务、主动触达或多用户能力。
+- 未修改 API、runtime、schema、`server.py`、`agent/`、`market/`、`static/`、`scripts/`。
+- 未修改任何运行期 `data/` 文件。
+- 未修改金融合规边界、荐股/目标价/收益预测拒绝策略。
 
-## 5. 本轮未完成内容
+## 5. 验收命令/检查结果
 
-- 未修改业务代码。
-- 未新增 SQLite、数据库文件、迁移脚本或外部依赖。
-- 未改 `market/data_store.py`、`agent/memory.py`、`agent/trace.py`、`server.py` 或 API。
-- 未修改运行期 `data/` 文件。
-- 未做多用户权限系统。
-- 未实现数据保留、归档、清理、导出或备份工具。
+本轮为文档策略型 Issue，不需要运行 `python scripts/verify_runtime.py`，因为该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`。
 
-## 6. 验收提示
+已执行的检查：
 
-本轮为文档决策型 Issue，无需运行 `python scripts/verify_runtime.py`。该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`，本轮明确不修改运行期 data 文件。
+- `git diff --stat`：只显示 `docs/CONTRACTS.md`、`docs/HANDOFF.md`、`docs/ISSUES.md`、`docs/RUNBOOK.md` 4 个文档文件。
+- `git diff -- docs/ISSUES.md docs/CONTRACTS.md docs/HANDOFF.md docs/RUNBOOK.md`：未发现运行期 `data/`、代码、schema 或脚本改动。
+- 人工检查 Markdown 标题层级和列表格式：已检查，`docs/RUNBOOK.md` 新增章节后编号已顺延。
 
-建议检查：
+检查目标：
 
-- `git diff -- docs/ISSUES.md docs/HANDOFF.md docs/CONTRACTS.md`
-- `git diff --stat`
+- diff 只包含允许范围内的文档。
+- 没有运行期 `data/`、代码、schema、脚本改动。
+- 没有新增文档文件。
 
-## 7. 遗留风险
+## 6. 后续建议 Issue
 
-- 当前 trace 查询和过滤依赖整文件读取，文件增长后会逐步变慢。
-- 当前缺少明确保留和清理策略，长期运行可能积累较大的本地 trace/history 文件。
-- memory 是单 JSON 文件，适合本地单用户；未来并发、多用户或事务一致性需求出现时需要重新评估。
-- 归档或清理如果先于策略设计实现，可能破坏审计追溯。
+- Trace Archive and Cleanup：在策略基础上设计 trace 分段归档、压缩、导出和清理；执行前必须确认备份和删除边界。
+- Market History Retention Tooling：定义 market history 保留窗口、归档格式、人工验收和恢复检查。
+- Memory Backup and Restore Policy/Tooling：定义 memory 备份、恢复、删除、重置的单独确认流程。
+- Runtime Data Export Policy/Tooling：定义本地导出范围、脱敏规则、用户确认和不上传外部服务边界。
+- SQLite Migration Design：仅在触发条件满足且用户批准后启动；先设计 schema、迁移/回滚、兼容读取、备份恢复和验收标准。
+
+## 7. 是否发现需要用户批准的新事项
+
+- 本轮未发现必须立即批准的新事项。
+- 后续任何删除、压缩、归档、导出、改变保留范围、memory 删除/重置/恢复、或 SQLite Migration Design 启动，都需要单独 Issue 和用户确认。

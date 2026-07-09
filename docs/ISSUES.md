@@ -357,3 +357,61 @@ SQLite 迁移触发条件：
 
 - 本轮未修改 UI、`server.py`、合规边界、Wiki 内容或外部依赖。
 - 新增字段为兼容扩展，未加入 schema required，以兼容旧 trace 与硬规则拦截结果。
+
+## ISSUE-011 Runtime Data Retention Policy
+
+状态：完成
+建议优先级：中
+
+背景：
+
+- ISSUE-007 已决定 v0.1 继续使用本地 JSON / JSONL。
+- 当前不迁移 SQLite，不新增数据库文件，不写迁移脚本，不改 runtime 存储代码。
+- `docs/CONTRACTS.md` 已明确运行期数据保留、归档、压缩、导出、清理和备份能力尚未实现。
+
+目标：
+
+- 定义运行期数据保留策略边界。
+- 覆盖 latest snapshot、market history、user memory、agent traces 四类本地运行期数据。
+- 明确人工确认、隐私、提交和后续 Issue 拆分规则。
+- 保持本轮为文档治理任务，不实现清理、归档、导出或备份工具。
+
+已完成：
+
+- 在 `docs/CONTRACTS.md` 补充运行期数据性质：
+  - `data/xueqiu_radar_latest.json` 是 latest snapshot，可再生成，不等同于审计历史。
+  - `data/xueqiu_radar_history.jsonl` 是 market history，可在未来定义归档或清理窗口，本轮不执行。
+  - `data/user_memory.json` 是 user memory，优先保护，不自动清理。
+  - `data/agent_traces.jsonl` 是 agent traces，优先保护审计链，不在无归档/备份/人工确认时删除。
+- 在 `docs/CONTRACTS.md` 明确保留优先级：memory、traces、market history、latest snapshot。
+- 在 `docs/CONTRACTS.md` 补充建议观察阈值和触发条件：trace 数量、trace 文件体积、history 文件体积、查询变慢、复杂查询需求和 memory 备份/恢复需求。
+- 在 `docs/CONTRACTS.md` 明确上述阈值只用于触发后续数据治理或存储设计讨论，不构成 SQLite 迁移计划。
+- 在 `docs/CONTRACTS.md` 补充人工确认规则：任何删除、压缩、归档、导出、改变保留范围的实际操作，都必须在后续单独 Issue 中实现并经用户确认；删除前必须有备份或明确放弃确认；memory 删除或重置必须单独确认。
+- 在 `docs/CONTRACTS.md` 补充隐私和提交边界：`data/user_memory.json` 和 `data/agent_traces.jsonl` 不应提交；不上传 memory、trace 或本地数据到外部服务；不把本地隐私数据写入治理文档。
+- 在 `docs/RUNBOOK.md` 小范围补充运行期数据人工检查提示，强调只检查和记录，不执行清理。
+- 在 `docs/HANDOFF.md` 更新本轮交接、验收方式和后续建议 Issue。
+
+未实现：
+
+- 未实现 trace 清理、归档、压缩或导出工具。
+- 未实现 market history 清理、归档、压缩或导出工具。
+- 未实现 memory 备份、恢复、删除或重置工具。
+- 未实现 runtime data export 工具。
+- 未修改 JSON / JSONL 存储方式。
+- 未引入 SQLite、外部数据库、外部依赖、定时任务或主动触达。
+- 未修改 API、runtime、schema、`server.py`、`agent/`、`market/`、`static/`、`scripts/` 或 `data/`。
+- 未修改金融合规边界、荐股/目标价/收益预测拒绝策略。
+
+后续建议 Issue：
+
+- Trace Archive and Cleanup：在策略基础上设计 trace 分段归档、压缩、导出和清理的最小实现；执行前必须确认备份和删除边界。
+- Market History Retention Tooling：定义 market history 保留窗口、归档格式、人工验收和恢复检查；本轮未实现。
+- Memory Backup and Restore Policy/Tooling：定义 memory 备份、恢复、删除、重置的单独确认流程；memory 不参与普通自动清理。
+- Runtime Data Export Policy/Tooling：定义本地导出范围、脱敏规则、用户确认和不上传外部服务边界。
+- SQLite Migration Design：仅在触发条件满足且用户批准后启动；先设计 schema、迁移/回滚、兼容读取、备份恢复和验收标准。
+
+验收：
+
+- `git diff --stat` 应只显示允许范围内的文档修改。
+- `git diff` 应确认没有运行期 `data/`、代码、schema 或脚本改动。
+- 本轮不需要运行 `python scripts/verify_runtime.py`，因为该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`。

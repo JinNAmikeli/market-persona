@@ -176,4 +176,39 @@ v0.1 当前运行期存储保持本地 JSON / JSONL 文件：
 
 当前不引入 SQLite、外部数据库或存储迁移脚本。任何从 JSON / JSONL 迁移到 SQLite、外部数据库或其他长期存储的改动，都属于存储迁移，必须先登记单独 Issue、说明触发条件与迁移设计，并获得用户批准。
 
-数据保留、归档、压缩、导出、清理和备份策略尚未实现；这些能力应先作为运行期数据治理 Issue 设计和验收，不应被默认为已存在的存储能力。
+本地运行期数据性质：
+
+- `data/xueqiu_radar_latest.json` 是 latest snapshot，用于表示当前市场快照；它可通过刷新重新生成，不等同于审计历史。
+- `data/xueqiu_radar_history.jsonl` 是 market history，用于记录市场历史快照；未来可以设置归档或清理窗口，但本轮不执行任何归档或清理。
+- `data/user_memory.json` 是 user memory，用于保留本地用户旅程状态、偏好和观察上下文；优先保护，不自动清理。
+- `data/agent_traces.jsonl` 是 agent traces，用于保留 Agent 回复的审计链；优先保留，不在缺少归档、备份和人工确认时删除。
+
+保留优先级：
+
+1. memory 优先保护，不设置自动删除规则；删除、重置或覆盖 memory 必须单独确认。
+2. traces 优先保护审计链；只有在有明确归档/备份方案和用户确认后，后续 Issue 才能实现删除、压缩或分段归档。
+3. market history 可以在后续 Issue 中定义保留窗口、体积阈值和人工归档流程；当前只记录策略边界，不改变现有文件。
+4. latest snapshot 是当前态缓存，可再生成；它不应用来替代 history 或 trace 的审计用途。
+
+建议观察阈值和触发条件：
+
+- `data/agent_traces.jsonl` trace 数量达到约 10,000 条，或单文件体积达到约 50 MB。
+- `data/agent_traces.jsonl` 查询、过滤、打开详情或调试台加载出现可感知变慢。
+- `data/xueqiu_radar_history.jsonl` 单文件体积持续增长并影响刷新、读取最近记录或人工查看。
+- market history 需要稳定支持跨日期、多条件、主题/个股维度查询。
+- memory 写入需要更强备份、恢复或并发一致性保证。
+
+上述阈值只用于触发后续数据治理或存储设计讨论，不构成 SQLite 迁移计划。SQLite Migration Design 只有在触发条件满足且用户批准后才能启动。
+
+人工确认规则：
+
+- 任何删除、压缩、归档、导出、改变保留范围的实际操作，都必须在后续单独 Issue 中设计、实现和验收，并经用户确认。
+- 删除前必须有备份，或由用户明确确认放弃备份。
+- memory 删除、重置、恢复或大范围改写必须单独确认，不得作为普通 trace/history 清理的附带步骤。
+- 当前文档只定义策略边界，未实现保留、归档、压缩、导出、清理或备份能力。
+
+隐私和提交边界：
+
+- `data/user_memory.json` 和 `data/agent_traces.jsonl` 不应提交到 Git。
+- 不上传 memory、trace 或本地运行期数据到外部服务。
+- 不把本地隐私数据、trace 内容或 memory 内容写入治理文档。

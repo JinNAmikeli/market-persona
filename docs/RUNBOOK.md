@@ -2,7 +2,7 @@
 
 状态：生效
 版本：Market Harness Agent v0.1
-更新日期：2026-07-08
+更新日期：2026-07-09
 
 ## 1. 本地启动
 
@@ -108,7 +108,22 @@ curl "http://127.0.0.1:8787/api/agent/memory"
 
 注意：memory 是本地用户状态，不提交到 Git。
 
-## 7. 常见问题
+## 7. 运行期数据人工检查
+
+运行期数据文件：
+
+```text
+data/xueqiu_radar_latest.json
+data/xueqiu_radar_history.jsonl
+data/user_memory.json
+data/agent_traces.jsonl
+```
+
+人工维护时只检查文件体积、trace 数量、history 增长和查询是否变慢；不要在没有单独 Issue、备份和用户确认时删除、压缩、归档、导出或改变保留范围。
+
+`data/user_memory.json` 删除、重置、恢复或大范围改写必须单独确认。不要把 memory、trace 或本地运行期数据上传到外部服务，也不要把本地隐私数据写入治理文档。
+
+## 8. 常见问题
 
 ### 服务无法刷新
 
@@ -138,7 +153,7 @@ data/user_memory.json
 
 检查 `.gitignore` 是否仍包含对应规则。
 
-## 8. 变更前检查
+## 9. 变更前检查
 
 开始任何新 Issue 前：
 
@@ -147,4 +162,3 @@ data/user_memory.json
 3. 阅读 `docs/CONTRACTS.md`。
 4. 确认是否需要用户批准。
 5. 修改完成后更新 `docs/HANDOFF.md`。
-
