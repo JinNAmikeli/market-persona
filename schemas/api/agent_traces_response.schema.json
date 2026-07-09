@@ -30,10 +30,18 @@
           "factuality_coverage",
           "repair_mode",
           "repair_changed",
+          "repair_status",
           "review_passed",
+          "claim_binding_count",
+          "unsupported_claim_count",
+          "conflicting_claim_count",
           "evidence_count",
           "risk_flags",
           "memory_patch_keys",
+          "memory_operation_count",
+          "memory_patch_confidence",
+          "wiki_statuses",
+          "wiki_evidence_qualities",
           "generated_at"
         ],
         "properties": {
@@ -76,8 +84,20 @@
           "repair_changed": {
             "type": ["boolean", "null"]
           },
+          "repair_status": {
+            "type": ["string", "null"]
+          },
           "review_passed": {
             "type": ["boolean", "null"]
+          },
+          "claim_binding_count": {
+            "type": "integer"
+          },
+          "unsupported_claim_count": {
+            "type": "integer"
+          },
+          "conflicting_claim_count": {
+            "type": "integer"
           },
           "evidence_count": {
             "type": "integer"
@@ -89,6 +109,25 @@
             }
           },
           "memory_patch_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "memory_operation_count": {
+            "type": "integer"
+          },
+          "memory_patch_confidence": {
+            "type": ["string", "null"],
+            "enum": ["low", "medium", "high", null]
+          },
+          "wiki_statuses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "wiki_evidence_qualities": {
             "type": "array",
             "items": {
               "type": "string"

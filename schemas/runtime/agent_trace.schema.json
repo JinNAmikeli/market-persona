@@ -252,6 +252,12 @@
             "coverage": {
               "type": "string"
             },
+            "repair_status": {
+              "type": "string"
+            },
+            "repaired_from_factuality": {
+              "type": "object"
+            },
             "coverage_summary": {
               "type": "string"
             },

@@ -19,7 +19,7 @@ from market_radar.agent.reflector import preserve_repaired_factuality, repair, r
 from market_radar.agent.runtime import run_agent_briefing, run_agent_turn
 from market_radar.agent.schemas import AgentRequest, AgentResponse, ReflectionResult
 from market_radar.agent.tools import TOOL_REGISTRY, run_tools, tool_data
-from market_radar.agent.trace import find_trace, read_traces, summarize_trace
+from market_radar.agent.trace import compare_traces, find_trace, read_traces, summarize_trace
 from market_radar.agent.wiki import search_wiki
 from market_radar.market.data_store import read_latest
 from market_radar.market.signals import derive_market, get_theme_signals
@@ -487,6 +487,30 @@ def main() -> int:
     )
     if trace:
         failures += not check_schema("schema agent trace", trace, "runtime/agent_trace.schema.json")
+        trace_summary = summarize_trace(trace)
+        failures += not check(
+            "trace summary debug fields",
+            all(
+                key in trace_summary
+                for key in (
+                    "repair_status",
+                    "claim_binding_count",
+                    "unsupported_claim_count",
+                    "conflicting_claim_count",
+                    "memory_operation_count",
+                    "memory_patch_confidence",
+                    "wiki_statuses",
+                    "wiki_evidence_qualities",
+                )
+            )
+            and isinstance(trace_summary.get("claim_binding_count"), int)
+            and isinstance(trace_summary.get("unsupported_claim_count"), int)
+            and isinstance(trace_summary.get("conflicting_claim_count"), int)
+            and isinstance(trace_summary.get("memory_operation_count"), int)
+            and isinstance(trace_summary.get("wiki_statuses"), list)
+            and isinstance(trace_summary.get("wiki_evidence_qualities"), list),
+            f"summary={trace_summary}",
+        )
         memory_patch = trace.get("memory_patch") or {}
         memory_patch_ops = memory_patch.get("operations") or []
         failures += not check(
@@ -509,6 +533,69 @@ def main() -> int:
             all(key in state_memory for key in ("watchlist", "focus_themes", "knowledge_level", "open_questions", "blockers", "next_priority", "journey_state")),
             f"memory_keys={sorted(state_memory.keys())}",
         )
+    compare_left = {
+        "trace_id": "compare-left",
+        "request": {"user_id": "verify_script", "message": "left", "mode": "passive", "context": {}},
+        "plan": {"task_type": "market_overview"},
+        "execution": {"mode": "template"},
+        "review": {
+            "passed": True,
+            "factuality": {
+                "status": "supported",
+                "coverage": "supported",
+                "claim_bindings": [{"claim": "a"}],
+                "unsupported_claims": [],
+                "conflicting_claims": [],
+            },
+        },
+        "repair": {"mode": "none", "changed": False},
+        "memory_patch": {"source": "agent_response", "reason": "left", "confidence": "low", "operations": []},
+        "wiki_hits": [{"status": "draft", "evidence_quality": "low"}],
+        "final_response": {"evidence": [], "risk_flags": []},
+    }
+    compare_right = {
+        "trace_id": "compare-right",
+        "request": {"user_id": "verify_script", "message": "right", "mode": "passive", "context": {}},
+        "plan": {"task_type": "theme_explanation"},
+        "execution": {"mode": "llm"},
+        "review": {
+            "passed": False,
+            "factuality": {
+                "status": "evidence_conflict",
+                "coverage": "partial",
+                "repair_status": "claims_removed",
+                "claim_bindings": [{"claim": "a"}, {"claim": "b"}],
+                "unsupported_claims": ["b"],
+                "conflicting_claims": ["c"],
+            },
+        },
+        "repair": {"mode": "rules", "changed": True},
+        "memory_patch": {
+            "source": "user_message",
+            "reason": "right",
+            "confidence": "high",
+            "operations": [{"op": "append_unique", "path": "focus_themes", "value": "AI硬件"}],
+            "evidence_refs": ["evidence:market_signal"],
+        },
+        "wiki_hits": [{"status": "reviewed", "evidence_quality": "high"}],
+        "final_response": {"evidence": [{"type": "market_signal"}], "risk_flags": []},
+    }
+    trace_diff = compare_traces(compare_left, compare_right)
+    diff_fields = {item.get("field") for item in trace_diff.get("differences") or []}
+    failures += not check(
+        "trace compare summary",
+        trace_diff.get("changed") is True
+        and {
+            "task_type",
+            "execution_mode",
+            "review_passed",
+            "factuality_status",
+            "repair_changed",
+            "memory_patch_keys",
+            "memory_operation_count",
+        }.issubset(diff_fields),
+        f"diff_fields={sorted(diff_fields)}",
+    )
 
     trace_rows = read_traces(limit=5)
     trace_summaries = [summarize_trace(item) for item in trace_rows]

@@ -710,6 +710,9 @@ function renderTraceList() {
       const repair = trace.repair_changed ? "已修复" : "未修复";
       const factuality = trace.factuality_status || "--";
       const checked = state.compareTraceIds.includes(trace.trace_id) ? " checked" : "";
+      const claimStats = `claims ${trace.claim_binding_count ?? 0}/${trace.unsupported_claim_count ?? 0}/${trace.conflicting_claim_count ?? 0}`;
+      const memoryStats = `memory ops ${trace.memory_operation_count ?? 0}`;
+      const wikiStats = (trace.wiki_statuses || []).join(", ") || "--";
       return `
         <div class="trace-row${active}">
           <button class="trace-main" data-trace-id="${escapeHtml(trace.trace_id)}" type="button">
@@ -723,6 +726,9 @@ function renderTraceList() {
             </span>
             <span class="trace-row-meta">
               factuality: ${escapeHtml(factuality)}
+            </span>
+            <span class="trace-row-meta">
+              ${escapeHtml(claimStats)} · ${escapeHtml(memoryStats)} · wiki ${escapeHtml(wikiStats)}
             </span>
           </button>
           <label class="trace-compare-pick">
@@ -859,13 +865,30 @@ function renderTraceDetail(trace) {
   const repair = trace.repair || {};
   const finalResponse = trace.final_response || {};
   const factuality = review.factuality || {};
+  const memoryPatch = trace.memory_patch || {};
+  const wikiHits = trace.wiki_hits || [];
+  const claimBindingCount = Array.isArray(factuality.claim_bindings) ? factuality.claim_bindings.length : 0;
+  const unsupportedClaimCount = Array.isArray(factuality.unsupported_claims) ? factuality.unsupported_claims.length : 0;
+  const conflictingClaimCount = Array.isArray(factuality.conflicting_claims) ? factuality.conflicting_claims.length : 0;
+  const memoryOperationCount = Array.isArray(memoryPatch.operations) ? memoryPatch.operations.length : 0;
+  const wikiStatuses = [...new Set(wikiHits.map((hit) => hit.status).filter(Boolean))];
+  const wikiQualities = [...new Set(wikiHits.map((hit) => hit.evidence_quality).filter(Boolean))];
   els.traceDetail.innerHTML = `
     <div class="trace-summary">
       <div><span>Trace</span><strong>${escapeHtml(trace.trace_id)}</strong></div>
       <div><span>任务</span><strong>${escapeHtml(plan.task_type || finalResponse.task_type || "--")}</strong></div>
       <div><span>执行</span><strong>${escapeHtml(execution.mode || "--")}</strong></div>
       <div><span>校验</span><strong>${review.passed ? "通过" : "未通过"}</strong></div>
-      <div><span>修复</span><strong>${repair.changed ? "已修复" : "未修复"}</strong></div>
+      <div><span>修复</span><strong>${escapeHtml(factuality.repair_status || repair.mode || (repair.changed ? "changed" : "none"))}</strong></div>
+    </div>
+    <div class="trace-debug-metrics">
+      <div><span>Claim 绑定</span><strong>${escapeHtml(String(claimBindingCount))}</strong></div>
+      <div><span>Unsupported</span><strong>${escapeHtml(String(unsupportedClaimCount))}</strong></div>
+      <div><span>Conflict</span><strong>${escapeHtml(String(conflictingClaimCount))}</strong></div>
+      <div><span>Memory Ops</span><strong>${escapeHtml(String(memoryOperationCount))}</strong></div>
+      <div><span>Patch Confidence</span><strong>${escapeHtml(memoryPatch.confidence || "--")}</strong></div>
+      <div><span>Wiki Status</span><strong>${escapeHtml(wikiStatuses.join(", ") || "--")}</strong></div>
+      <div><span>Wiki Quality</span><strong>${escapeHtml(wikiQualities.join(", ") || "--")}</strong></div>
     </div>
     <div class="trace-section">
       <h3>Factuality</h3>
@@ -920,7 +943,7 @@ function renderTraceDetail(trace) {
     </div>
     <div class="trace-section">
       <h3>Memory Patch</h3>
-      <pre>${prettyJson(trace.memory_patch || {})}</pre>
+      <pre>${prettyJson(memoryPatch)}</pre>
     </div>
     <div class="trace-section">
       <h3>最终回复</h3>

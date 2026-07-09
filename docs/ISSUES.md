@@ -163,17 +163,33 @@
 
 ## ISSUE-006 Trace Debugging Improvements
 
-状态：待办
+状态：完成
 建议优先级：中
 
 目标：
 
-- 增加 trace diff 高亮、导出、时间范围查询和更清晰的 review 展示。
+- 增强 trace 调试能力，让开发者更容易查看 factuality、repair、memory patch 和 execution 信息。
 
 限制：
 
 - 不改变 trace 基础契约。
 - 不提交运行期 trace 数据。
+
+已完成：
+
+- `summarize_trace(trace)` 新增 `repair_status`、`claim_binding_count`、`unsupported_claim_count`、`conflicting_claim_count`、`memory_operation_count`、`memory_patch_confidence`、`wiki_statuses`、`wiki_evidence_qualities`。
+- 新增纯函数 `compare_traces(left, right)`，返回结构化 `differences` / `matches`，覆盖 task、execution、review、factuality、repair、memory patch 和 Wiki 治理摘要等关键项。
+- `schemas/api/agent_traces_response.schema.json` 覆盖新增 summary 字段。
+- `schemas/runtime/agent_trace.schema.json` 小范围补充 repair 后 factuality 兼容字段。
+- `scripts/verify_runtime.py` 增加 trace summary 字段、trace diff summary 和 traces response schema 回归。
+- `?debug=1` 调试台小范围增加 claim、memory operation、Wiki status/quality 等摘要展示。
+- `docs/CONTRACTS.md` 更新 Trace 契约。
+
+未实现：
+
+- 未新增 trace 导出 API 或导出按钮。
+- 未修改 `server.py` 路由。
+- 未修改 Agent Runtime 主流程、memory/factuality 规则或金融合规边界。
 
 ## ISSUE-007 Storage Strategy Decision
 

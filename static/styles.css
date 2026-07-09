@@ -835,6 +835,34 @@ button {
   font-size: 13px;
 }
 
+.trace-debug-metrics {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.trace-debug-metrics div {
+  min-height: 58px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef3f1;
+}
+
+.trace-debug-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trace-debug-metrics strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
 .trace-section {
   margin-bottom: 10px;
   padding: 11px;
@@ -1006,6 +1034,7 @@ button {
   .trace-layout,
   .trace-toolbar,
   .trace-summary,
+  .trace-debug-metrics,
   .factuality-grid {
     grid-template-columns: 1fr;
   }

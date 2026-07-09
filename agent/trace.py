@@ -64,6 +64,7 @@ def summarize_trace(trace: dict[str, Any]) -> dict[str, Any]:
     factuality = review.get("factuality") or {}
     if isinstance(factuality, str):
         factuality = {"status": factuality}
+    memory_patch = trace.get("memory_patch") or {}
     return {
         "trace_id": trace.get("trace_id"),
         "created_at": trace.get("created_at"),
@@ -78,12 +79,98 @@ def summarize_trace(trace: dict[str, Any]) -> dict[str, Any]:
         "factuality_coverage": factuality.get("coverage"),
         "repair_mode": repair.get("mode"),
         "repair_changed": repair.get("changed"),
+        "repair_status": _repair_status(repair, factuality),
         "review_passed": review.get("passed"),
+        "claim_binding_count": _list_count(factuality.get("claim_bindings")),
+        "unsupported_claim_count": _list_count(factuality.get("unsupported_claims")),
+        "conflicting_claim_count": _list_count(factuality.get("conflicting_claims")),
         "evidence_count": len(response.get("evidence") or []),
         "risk_flags": response.get("risk_flags") or [],
-        "memory_patch_keys": sorted((trace.get("memory_patch") or {}).keys()),
+        "memory_patch_keys": sorted(memory_patch.keys()),
+        "memory_operation_count": _memory_operation_count(memory_patch),
+        "memory_patch_confidence": memory_patch.get("confidence"),
+        "wiki_statuses": _unique_values(trace.get("wiki_hits") or [], "status"),
+        "wiki_evidence_qualities": _unique_values(trace.get("wiki_hits") or [], "evidence_quality"),
         "generated_at": (trace.get("state_summary") or {}).get("generated_at"),
     }
+
+
+def compare_traces(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    left_summary = summarize_trace(left)
+    right_summary = summarize_trace(right)
+    fields = [
+        "task_type",
+        "execution_mode",
+        "review_passed",
+        "factuality_status",
+        "factuality_coverage",
+        "repair_changed",
+        "repair_status",
+        "memory_patch_keys",
+        "memory_operation_count",
+        "memory_patch_confidence",
+        "claim_binding_count",
+        "unsupported_claim_count",
+        "conflicting_claim_count",
+        "wiki_statuses",
+        "wiki_evidence_qualities",
+    ]
+    differences = []
+    matches = []
+    for field in fields:
+        left_value = left_summary.get(field)
+        right_value = right_summary.get(field)
+        row = {"field": field, "left": left_value, "right": right_value}
+        if left_value == right_value:
+            matches.append(row)
+        else:
+            differences.append(row)
+    return {
+        "left_trace_id": left_summary.get("trace_id"),
+        "right_trace_id": right_summary.get("trace_id"),
+        "changed": bool(differences),
+        "differences": differences,
+        "matches": matches,
+    }
+
+
+def _repair_status(repair: dict[str, Any], factuality: dict[str, Any]) -> str | None:
+    if factuality.get("repair_status"):
+        return str(factuality["repair_status"])
+    if repair.get("status"):
+        return str(repair["status"])
+    if repair.get("changed") is True:
+        return str(repair.get("mode") or "changed")
+    if repair.get("changed") is False:
+        return "none"
+    return None
+
+
+def _list_count(value: Any) -> int:
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return 0
+
+
+def _memory_operation_count(memory_patch: dict[str, Any]) -> int:
+    operations = memory_patch.get("operations")
+    if isinstance(operations, list):
+        return len(operations)
+    audit_keys = {"version", "source", "reason", "confidence", "evidence_refs"}
+    return len([key for key, value in memory_patch.items() if key not in audit_keys and value not in (None, [], {})])
+
+
+def _unique_values(rows: list[Any], key: str) -> list[str]:
+    values = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        value = row.get(key)
+        if isinstance(value, str) and value and value not in values:
+            values.append(value)
+    return sorted(values)
 
 
 def _matches_filters(trace: dict[str, Any], filters: dict[str, Any]) -> bool:

@@ -127,6 +127,20 @@ Trace 当前使用 `data/agent_traces.jsonl`。
 - 请求、状态、规划、工具、知识、执行、校验、修复、memory、最终回复。
 - 调试台查询和人工审计。
 
+`GET /api/agent/traces` 列表返回的是 trace summary，summary 由原始 trace 派生，至少保留：
+
+- `trace_id`、`created_at`、`user_id`、`message`、`mode`。
+- `task_type`、`execution_mode`、`llm_provider`、`llm_model`。
+- `factuality_status`、`factuality_coverage`、`review_passed`。
+- `repair_mode`、`repair_changed`、`repair_status`。
+- `claim_binding_count`、`unsupported_claim_count`、`conflicting_claim_count`。
+- `evidence_count`、`risk_flags`。
+- `memory_patch_keys`、`memory_operation_count`、`memory_patch_confidence`。
+- `wiki_statuses`、`wiki_evidence_qualities`。
+- `generated_at`。
+
+`compare_traces(left, right)` 是本地纯函数，只返回结构化差异，不修改 trace、不写文件、不改变 API 路由。它用于比较 task、execution、review、factuality、repair、memory patch 和 Wiki 治理摘要等关键调试项。
+
 运行期 trace 不提交到 Git。
 
 ## 7. Wiki 契约
