@@ -468,3 +468,61 @@ SQLite 迁移触发条件：
 - `git diff --stat` 只显示允许范围内文件。
 - `git diff` 确认没有 `data/`、`server.py`、`agent/`、`market/`、`static/`、`schemas/` 改动。
 - 未运行 `python scripts/verify_runtime.py`，因为本 Issue 不涉及 runtime 行为，且该脚本会写入 `data/user_memory.json` 和 `data/agent_traces.jsonl`。
+
+## ISSUE-013 Memory Backup and Restore Policy
+
+状态：完成
+建议优先级：中
+
+背景：
+
+- ISSUE-011 已定义 Runtime Data Retention Policy。
+- ISSUE-012 已新增只读 Runtime Data Retention Inspector。
+- memory 被定义为最高保护优先级的本地用户旅程状态。
+- 后续任何 memory 删除、重置、恢复或大范围改写都必须单独确认。
+
+目标：
+
+- 定义 memory 备份、恢复、删除、重置和大范围改写的治理规则。
+- 保持本轮为文档治理任务，不实现任何工具。
+- 不读取、不复制、不打印、不修改 `data/user_memory.json` 内容。
+
+已完成：
+
+- 在 `docs/CONTRACTS.md` 补充 memory backup / restore / delete / reset 策略边界。
+- 明确 `data/user_memory.json` 是本地用户旅程状态，不是临时缓存。
+- 明确 memory 可能包含用户自选、关注主题、知识水平、风险偏好、旅程状态等敏感或半敏感信息。
+- 明确备份必须由用户明确触发，或由后续单独 Issue 授权。
+- 明确备份前应说明备份位置、范围、是否包含隐私数据，以及是否覆盖既有备份。
+- 明确不允许自动上传 memory 到外部服务，不允许把 memory 内容写入治理文档、handoff、日志、调试输出或提交信息。
+- 明确恢复前必须确认目标文件、来源备份、覆盖范围和是否保留当前文件；恢复属于高风险本地状态改写，必须单独确认。
+- 明确恢复后可建议运行只读 inspector 或 memory 查看 API 做人工检查，但本轮不实现，也不读取或输出 memory 内容。
+- 明确删除或重置 memory 必须单独确认，不得作为 trace/history 清理的附带步骤；删除前必须有备份或用户明确确认放弃备份。
+- 明确手动批量编辑、字段迁移、批量清空 `watchlist` / `focus_themes` 等都属于高风险 memory 改写，需要单独 Issue、影响字段说明、验收方式和回退方案。
+- 在 `docs/RUNBOOK.md` 补充 memory 高风险操作前人工检查规则，不提供复制或删除真实文件的命令。
+- 更新 `docs/HANDOFF.md` 记录本轮完成内容、未做事项、验收方式和后续建议。
+
+未实现：
+
+- 未实现备份脚本、恢复脚本、导出工具或清理工具。
+- 未复制、读取、打印或修改 `data/user_memory.json` 内容。
+- 未修改任何 `data/` 文件。
+- 未修改 JSON / JSONL 存储方式。
+- 未引入 SQLite、外部数据库、外部依赖、定时任务、主动触达或多用户能力。
+- 未修改 `server.py`、API、agent runtime、market、static、schemas、scripts 或金融合规边界。
+
+后续建议 Issue：
+
+- Memory Backup Tooling：定义本地备份位置、命名、覆盖策略、人工确认和验收方式。
+- Memory Restore Tooling：定义来源备份校验、覆盖范围、保留当前文件、恢复后人工检查和回退流程。
+- Memory Reset Confirmation Flow：定义删除/重置前确认、备份或放弃备份确认、结果验收和审计记录边界。
+- Runtime Data Export Policy/Tooling：定义本地导出范围、脱敏规则、用户确认和不上传外部服务边界。
+
+验收：
+
+- `git diff --stat` 应只显示允许范围内文档。
+- `git diff` 应确认没有 `data/`、`scripts/`、`server.py`、`agent/`、`market/`、`static/`、`schemas/` 改动。
+- 不运行 `python scripts/verify_runtime.py`。
+- 不运行会读取或输出 memory 内容的命令。
+- 不新增备份文件。
+- 不新增脚本。
